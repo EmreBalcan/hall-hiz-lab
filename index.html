@@ -1,0 +1,1821 @@
+<meta charset="utf-8">
+<title>Hall Etkisi Hız Laboratuvarı</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;700&family=Share+Tech+Mono&display=swap">
+<style>
+/* Layout: üstte tam genişlik 3D anlatım sahnesi; altında devre şeması (breadboard) ve aynı devrenin çalışan simülasyonu */
+:root{
+  --bg:#eef2f7; --surface:#ffffff; --panel:rgba(255,255,255,.93); --tint:#f4f7fb; --line:#d2dbe7; --line2:#b6c4d8;
+  --fg:#14223b; --muted:#52617b; --dim:#8b98ae;
+  --accent:#0b7fc0; --green:#12994a; --red:#d93a46; --blue:#2563eb; --amber:#c27400; --violet:#7a4ee0;
+  --lcd:#0c1a14; --lcdfg:#38f08c; --codebg:#0f1b2d;
+  --f-display:"Space Grotesk",system-ui,sans-serif; --f-body:Inter,system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace; --f-digit:"Share Tech Mono","JetBrains Mono",monospace;
+  color-scheme:light;
+}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);margin:0;}
+#app{position:relative;height:clamp(560px,92vh,940px);overflow:hidden;background:#e7edf5;}
+#stage,#stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden;}
+.lbl{position:absolute;left:0;top:0;opacity:0;transition:opacity .45s;will-change:transform;}
+.lbl.on{opacity:1;}
+.lbl i{position:absolute;width:7px;height:7px;margin:-3.5px 0 0 -3.5px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px #fff;}
+.lbl span{position:absolute;left:10px;bottom:6px;white-space:nowrap;font:500 12px/1.25 var(--f-body);color:var(--fg);
+  background:rgba(255,255,255,.95);border:1px solid var(--line2);border-left:2px solid var(--accent);padding:3px 7px;border-radius:3px;box-shadow:0 1px 3px rgba(20,34,59,.12);}
+.lbl.l span{left:auto;right:10px;border-left:1px solid var(--line2);border-right:2px solid var(--accent);}
+.lbl.d span{bottom:auto;top:6px;}
+.lbl.g i{background:var(--green);} .lbl.g span{border-left-color:var(--green);}
+.lbl.r i{background:var(--red);} .lbl.r span{border-left-color:var(--red);}
+.lbl.b i{background:var(--blue);} .lbl.b span{border-left-color:var(--blue);}
+.lbl.a i{background:var(--amber);} .lbl.a span{border-left-color:var(--amber);}
+.lbl.pin span{font-family:var(--f-mono);font-size:11px;}
+.lbl .sub{display:block;color:var(--muted);font-size:10.5px;}
+.vhbar{display:block;width:120px;height:6px;background:#dde5f0;border-radius:3px;margin-top:4px;overflow:hidden;}
+.vhbar b{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--red));width:0;}
+
+#app>header{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+  padding:12px max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px));
+  background:linear-gradient(180deg,rgba(238,242,247,.96),rgba(238,242,247,0));pointer-events:none;}
+.brand{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.brand small{font:600 10.5px var(--f-mono);letter-spacing:.14em;color:var(--accent);text-transform:uppercase;}
+.brand h1{margin:0;font:700 17px/1.2 var(--f-display);letter-spacing:.01em;text-wrap:balance;}
+#steps{display:flex;gap:6px;margin-left:auto;pointer-events:auto;overflow-x:auto;max-width:100%;scrollbar-width:none;}
+#steps button{position:relative;overflow:hidden;flex:none;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.92);border:1px solid var(--line);
+  color:var(--muted);font:500 12px var(--f-body);padding:6px 10px;border-radius:4px;cursor:pointer;}
+#steps button b{font:600 11px var(--f-mono);color:var(--dim);}
+#steps button .pr{position:absolute;left:0;bottom:0;height:2px;background:var(--accent);width:0;}
+#steps button.cur{color:var(--fg);border-color:var(--accent);background:#e3f1fb;}
+#steps button.cur b{color:var(--accent);}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+#hud{position:absolute;top:74px;left:max(16px,env(safe-area-inset-left,0px));display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;width:300px;pointer-events:none;}
+.cell{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:7px 10px;}
+.cell label{display:block;font:500 10.5px var(--f-body);color:var(--muted);letter-spacing:.04em;}
+.cell output{font:400 22px/1.1 var(--f-digit);font-variant-numeric:tabular-nums;color:var(--fg);}
+.cell.meas output{color:var(--green);} .cell.duty output{color:var(--amber);} .cell.tgt output{color:var(--accent);}
+#mode{grid-column:1/-1;font:500 11px var(--f-mono);color:var(--muted);padding:3px 2px;}
+#mode b{color:var(--accent);font-weight:600;}
+#note,#note.on{display:none!important;}
+
+#panel{position:absolute;top:74px;right:max(16px,env(safe-area-inset-right,0px));bottom:92px;width:370px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;
+  transition:opacity .5s,transform .5s;scrollbar-width:thin;}
+#panel.off{opacity:0;transform:translateX(24px);pointer-events:none;}
+.sec{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:10px 12px;flex:none;box-shadow:0 1px 3px rgba(20,34,59,.06);}
+.sec h3{margin:0 0 6px;font:600 12px var(--f-display);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:8px;}
+.sec h3 em{font-style:normal;font-family:var(--f-mono);color:var(--accent);text-transform:none;letter-spacing:0;}
+.sec canvas{width:100%;height:118px;display:block;}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;font:400 11px var(--f-body);color:var(--muted);margin-top:5px;}
+.legend i{display:inline-block;width:14px;height:0;border-top:2px dashed currentColor;vertical-align:middle;margin-right:4px;}
+.k-g{color:var(--green);} .k-a{color:var(--amber);} .k-c{color:var(--accent);} .k-r{color:var(--red);} .k-b{color:var(--blue);} .k-v{color:var(--violet);}
+.small{font:400 11px/1.45 var(--f-body);color:var(--muted);margin:6px 0 0;}
+.sec p.small:not(#cAvg){display:none;}
+
+.chain{display:grid;grid-template-columns:1fr;gap:4px;}
+.node{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--line);border-radius:4px;padding:6px 9px;font:500 12px var(--f-body);background:var(--tint);transition:border-color .2s,background .2s;}
+.node span{color:var(--muted);font:400 11px var(--f-mono);}
+.node.hot{border-color:var(--green);background:#e6f6ec;}
+.arrow{text-align:center;color:var(--dim);font-size:11px;line-height:1;}
+
+.calc .row{display:flex;justify-content:space-between;font:400 12.5px var(--f-body);padding:3px 0;border-bottom:1px dashed var(--line);}
+.calc .row b{font:600 13px var(--f-mono);font-variant-numeric:tabular-nums;}
+.gatebar{height:5px;background:#dde5f0;border-radius:3px;overflow:hidden;margin:6px 0 2px;}
+.gatebar b{display:block;height:100%;width:0;background:var(--accent);}
+.formula{font:400 13px/1.7 var(--f-mono);margin-top:8px;padding:8px;background:var(--tint);border:1px solid var(--line);border-radius:4px;}
+.formula div{transition:color .3s,background .3s;}
+.formula .hl{color:var(--green);}
+.formula .flash{background:rgba(18,153,74,.12);}
+.digital{margin-top:8px;display:flex;align-items:baseline;justify-content:center;gap:8px;background:var(--lcd);border:1px solid #233;border-radius:5px;padding:8px;}
+.digital output{font:400 46px/1 var(--f-digit);color:var(--lcdfg);font-variant-numeric:tabular-nums;min-width:4ch;text-align:right;}
+.digital span{font:600 14px var(--f-mono);color:#8fb3a0;}
+
+.ctrlgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;}
+.ctrlgrid .cell output{font-size:26px;}
+.dutybar{position:relative;height:16px;background:var(--tint);border:1px solid var(--line);border-radius:3px;margin-top:6px;overflow:hidden;}
+.dutybar b{position:absolute;inset:0 auto 0 0;width:0;background:linear-gradient(90deg,#f0b75a,#e08a00);}
+.dutybar span{position:absolute;right:6px;top:0;font:600 11px/16px var(--f-mono);color:var(--fg);}
+#decision{margin-top:8px;font:600 12px var(--f-body);padding:7px 9px;border-radius:4px;border:1px solid var(--line);}
+#decision.up{color:var(--amber);border-color:var(--amber);} #decision.down{color:var(--accent);border-color:var(--accent);} #decision.eq{color:var(--green);border-color:var(--green);}
+.loop{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:8px;font:500 11px var(--f-body);}
+.loop span{padding:4px 6px;border:1px solid var(--line);border-radius:3px;color:var(--muted);transition:all .2s;}
+.loop span.hot{color:var(--fg);border-color:var(--green);background:#e6f6ec;}
+.loop i{color:var(--dim);font-style:normal;}
+
+#caption{position:absolute;left:50%;bottom:104px;transform:translateX(-50%) translateY(8px);max-width:min(760px,calc(100% - 32px));text-align:center;
+  font:600 clamp(16px,2.1vw,22px)/1.35 var(--f-display);color:var(--fg);text-wrap:balance;padding:10px 18px;border-radius:5px;
+  background:rgba(255,255,255,.95);border:1px solid var(--line);box-shadow:0 4px 16px rgba(20,34,59,.12);opacity:0;transition:opacity .35s,transform .35s;pointer-events:none;}
+#caption.show{opacity:1;transform:translateX(-50%) translateY(0);}
+#app.withpanel #caption{left:calc((100% - 402px)/2);}
+
+#finale{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;opacity:0;transition:opacity .8s;
+  background:radial-gradient(closest-side,rgba(255,255,255,.97),rgba(255,255,255,.85) 70%,rgba(255,255,255,0));padding:40px 60px;}
+#app.withpanel #finale{left:calc((100% - 402px)/2);}
+#finale.on{opacity:1;}
+#finale h2{margin:0 0 14px;font:700 clamp(28px,4.4vw,54px)/1.05 var(--f-display);letter-spacing:.04em;color:var(--fg);}
+#finale p{margin:6px 0;font:500 clamp(15px,1.8vw,21px)/1.35 var(--f-body);color:var(--fg);opacity:0;transform:translateY(8px);transition:opacity .6s,transform .6s;}
+#finale p.on{opacity:1;transform:none;}
+#finale p::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:10px;vertical-align:middle;}
+
+#flash{position:absolute;inset:0;background:radial-gradient(circle,#ffffff,#d9ecfa 50%,#bcd5ec);opacity:0;pointer-events:none;}
+
+#foot{position:absolute;left:0;right:0;bottom:0;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;
+  padding:10px max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px));
+  background:rgba(255,255,255,.95);border-top:1px solid var(--line);}
+.ctl{display:flex;align-items:center;gap:8px;}
+.ctl button,.btn{background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:4px;font:600 13px var(--f-body);padding:7px 12px;cursor:pointer;min-height:34px;}
+.ctl button:hover,.btn:hover{border-color:var(--accent);}
+.ctl button.primary,.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);min-width:104px;}
+.ctl label{font:500 12px var(--f-body);color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer;}
+.ctl input[type=range]{width:120px;accent-color:var(--accent);}
+.ctl output{font:600 12px var(--f-mono);color:var(--fg);min-width:52px;font-variant-numeric:tabular-nums;}
+input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;}
+.sep{width:1px;height:26px;background:var(--line);}
+#loading{position:absolute;inset:0;display:grid;place-items:center;font:600 14px var(--f-mono);color:var(--accent);letter-spacing:.1em;background:var(--bg);transition:opacity .6s;}
+#loading.done{opacity:0;pointer-events:none;}
+
+/* ---------- Bölüm 2 ve 3 ---------- */
+.block{padding-block:56px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));border-top:1px solid var(--line);}
+.block.alt{background:var(--surface);}
+.wrap{max-width:1360px;margin:0 auto;display:flex;flex-direction:column;gap:20px;}
+.sechead{display:flex;flex-direction:column;gap:6px;max-width:780px;}
+.eyebrow{font:600 11px var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);}
+.sechead h2{margin:0;font:700 clamp(22px,2.6vw,30px)/1.15 var(--f-display);text-wrap:balance;}
+.sechead p{margin:0;color:var(--muted);font-size:15px;line-height:1.55;}
+.boardfig{margin:0;background:#f8fafc;border:1px solid var(--line);border-radius:8px;overflow-x:auto;}
+.boardfig svg,.simboard svg{display:block;width:100%;height:auto;}
+.boardfig svg{min-width:760px;}
+.wirekey{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:var(--muted);}
+.wirekey span::before{content:"";display:inline-block;width:22px;height:5px;border-radius:3px;background:var(--c);vertical-align:middle;margin-right:7px;}
+.wirekey span.dot::before{width:9px;height:9px;border-radius:50%;}
+.cols2{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:20px;align-items:start;}
+table.bom{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--surface);border:1px solid var(--line);}
+.bom th,.bom td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
+.bom th{font:600 11px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:var(--tint);}
+.bom td:first-child{font:600 12.5px var(--f-mono);white-space:nowrap;}
+.bom td:nth-child(3){font-family:var(--f-mono);font-size:12.5px;white-space:nowrap;}
+.tablewrap{overflow-x:auto;border-radius:8px;}
+details.code{background:var(--codebg);color:#d7e3f4;border-radius:8px;border:1px solid #1e2f4a;min-width:0;}
+details.code summary{cursor:pointer;padding:12px 14px;font:600 13px var(--f-body);color:#fff;}
+details.code pre{margin:0;padding:0 14px 14px;overflow-x:auto;font:12.5px/1.55 var(--f-mono);}
+.simgrid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:18px;align-items:start;}
+.simboard{position:sticky;top:12px;background:#f8fafc;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+.simside{display:flex;flex-direction:column;gap:12px;min-width:0;}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;}
+.block.alt .card{background:var(--tint);}
+.card h3{margin:0 0 8px;font:600 12px var(--f-display);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.card h3 em{font-style:normal;font-family:var(--f-mono);color:var(--accent);text-transform:none;letter-spacing:0;font-size:12px;}
+.btnrow{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;}
+.btnrow label{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer;}
+.btnrow input[type=range]{flex:1;min-width:120px;accent-color:var(--accent);}
+.btnrow output{font:600 12.5px var(--f-mono);font-variant-numeric:tabular-nums;}
+.btn.sm{min-height:28px;padding:4px 10px;font-size:12px;}
+.steps-l{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px;}
+.steps-l li{display:grid;grid-template-columns:22px 1fr;gap:8px;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;line-height:1.4;color:var(--muted);background:var(--surface);transition:background .25s,border-color .25s,color .25s;}
+.steps-l li b{font:600 12px var(--f-mono);color:var(--dim);}
+.steps-l li.on{border-color:var(--accent);background:#e3f1fb;color:var(--fg);}
+.steps-l li.on b{color:var(--accent);}
+.steps-l li>div{min-width:0;}
+.steps-l strong{display:block;font-weight:600;color:inherit;}
+.steps-l .sum{display:block;font:500 11.5px var(--f-mono);color:var(--dim);margin-top:1px;}
+.steps-l li.on .sum{color:var(--accent);}
+.steps-l .more{display:none;margin:8px 0 2px;font-size:13.5px;line-height:1.6;color:var(--fg);}
+.steps-l .more p{margin:0 0 7px;}
+.steps-l .more p:last-child{margin:0;}
+.steps-l li.on .more{display:block;}
+.steps-l code,.detail code{font:500 12px var(--f-mono);background:#dcebf7;color:#0b4f7a;padding:1px 5px;border-radius:3px;white-space:nowrap;}
+.detail .r{display:grid;grid-template-columns:92px minmax(0,1fr);gap:10px;padding:5px 0;border-bottom:1px dashed #c6dcee;font:500 13px/1.55 var(--f-body);}
+.detail .r:last-child{border-bottom:0;}
+.detail .r>span{font:600 10.5px/1.9 var(--f-body);color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+.detail .r b{font-family:var(--f-mono);font-weight:600;color:var(--accent);}
+.detail .hint{font-weight:600;}
+.detail .hint.up{color:var(--amber);} .detail .hint.down{color:var(--accent);} .detail .hint.eq{color:var(--green);}
+.exbar{height:4px;background:#dde5f0;border-radius:2px;overflow:hidden;margin-top:8px;}
+.exbar b{display:block;height:100%;width:0;background:var(--accent);transition:width .1s linear;}
+.exnote{font-size:11.5px;color:var(--muted);margin-top:4px;min-height:1em;}
+.power{flex-wrap:wrap;}
+.power>span:last-child{flex:1;min-width:200px;}
+.detail{background:#eef5fb;border:1px solid #c6dcee;border-radius:6px;padding:6px 12px;min-height:72px;color:var(--fg);}
+.detail b{color:var(--accent);}
+.power{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.45;margin-top:8px;}
+.pill{flex:none;font:600 11px var(--f-mono);padding:3px 8px;border-radius:99px;border:1px solid currentColor;}
+.pill.on{color:var(--green);} .pill.off{color:var(--violet);}
+.kv{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
+.kv div{background:var(--tint);border:1px solid var(--line);border-radius:6px;padding:6px 8px;min-width:0;}
+.block.alt .kv div{background:var(--surface);}
+.kv label{display:block;font-size:11px;color:var(--muted);}
+.kv output{font:600 16px var(--f-mono);font-variant-numeric:tabular-nums;}
+#vVolt{color:var(--violet);} #vDuty{color:var(--amber);}
+canvas.sc{width:100%;height:120px;display:block;}
+.serial{background:var(--codebg);color:#9ff0c0;font:12px/1.5 var(--f-mono);border-radius:6px;padding:8px 10px;height:128px;overflow:auto;white-space:pre;}
+.potrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.potrow input{flex:1;min-width:140px;accent-color:var(--accent);}
+
+@media (max-width:1060px){ .simgrid,.cols2{grid-template-columns:minmax(0,1fr);} .simboard{position:relative;top:0;overflow-x:auto;} .simboard svg{min-width:640px;} }
+@media (max-width:820px){
+  .brand h1{font-size:14px;}
+  #hud{top:auto;bottom:calc(var(--fh,120px) + 8px);width:auto;right:max(16px,env(safe-area-inset-right,0px));grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;}
+  .cell{padding:4px 6px;} .cell output{font-size:16px;} .cell label{font-size:9.5px;}
+  #mode{display:none;}
+  #panel{top:auto;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));width:auto;bottom:calc(var(--fh,120px) + 64px);max-height:30%;}
+  #panel .sec canvas{height:84px;}
+  #caption{bottom:auto;top:96px;font-size:15px;}
+  #app.withpanel #caption,#app.withpanel #finale{left:50%;}
+  .ctl input[type=range]{width:90px;}
+  .sep{display:none;}
+  .kv{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media (prefers-reduced-motion:reduce){ #flash{display:none;} .lbl,#caption,#panel{transition:none;} }
+</style>
+
+<div id="app">
+  <div id="stage"></div>
+  <div id="labels"></div>
+  <div id="flash"></div>
+
+  <header>
+    <div class="brand">
+      <small>Mühendislik laboratuvarı · etkileşimli simülasyon</small>
+      <h1>Hall Effect Sensörü ile Motor Hız Ölçümü ve Kontrolü</h1>
+    </div>
+    <nav id="steps" aria-label="Sahneler"></nav>
+  </header>
+
+  <section id="hud" aria-label="Canlı göstergeler">
+    <div class="cell"><label>Mil hızı (gerçek)</label><output id="hReal">0</output></div>
+    <div class="cell meas"><label>Ölçülen (Hall)</label><output id="hMeas">0</output></div>
+    <div class="cell duty"><label>PWM görev oranı</label><output id="hDuty">0</output></div>
+    <div class="cell tgt"><label>Hedef hız</label><output id="hTgt">—</output></div>
+    <div id="mode">Mod: <b id="hMode">Senaryo</b></div>
+  </section>
+  <div id="note"></div>
+
+  <aside id="panel" class="off">
+    <section class="sec" id="secChain">
+      <h3>Dijital Hall sensörü içi <em id="chOut">OUT = 0</em></h3>
+      <div class="chain">
+        <div class="node" id="nHall">Hall elemanı (yarı iletken) <span id="nVh">V_H ∝ I·B</span></div>
+        <div class="arrow">▼</div>
+        <div class="node" id="nAmp">Yükselteç <span>küçük V_H büyütülür</span></div>
+        <div class="arrow">▼</div>
+        <div class="node" id="nSch">Schmitt tetikleyici <span id="nSchS">B_OP 35 / B_RP 25 mT</span></div>
+        <div class="arrow">▼</div>
+        <div class="node" id="nOut">Çıkış transistörü → OUT <span id="nOutS">0</span></div>
+      </div>
+      <p class="small">B, açma eşiği B_OP'u geçince çıkış 1 olur; bırakma eşiği B_RP'nin altına inince 0'a döner. İki eşik arasındaki fark (histerezis) gürültüde titremeyi önler.</p>
+      <p class="small"><b class="k-a">Model bağımlıdır:</b> Birçok dijital Hall anahtarı açık-drenaj çıkışlıdır ve algılamada OUT gerilimi LOW olur (aktif düşük). Kutup duyarlılığı (tek kutuplu, iki kutuplu, mandallı) ve eşik değerleri de modele göre değişir. Burada mantıksal 1 = “S kutbu algılandı”.</p>
+    </section>
+
+    <section class="sec" id="secB">
+      <h3>Sensör noktasında manyetik alan <em id="bVal">0 mT</em></h3>
+      <canvas id="cvB"></canvas>
+      <div class="legend"><span class="k-c">━ B (sensör yüzeyine dik)</span><span class="k-g"><i></i>B_OP = 35 mT</span><span class="k-a"><i></i>B_RP = 25 mT</span></div>
+      <p class="small">+B: mıknatısın S kutbu sensöre bakıyor (yaygın veri sayfası işareti).</p>
+    </section>
+
+    <section class="sec" id="secO">
+      <h3>Sensör dijital çıkışı <em id="oVal">0</em></h3>
+      <canvas id="cvO"></canvas>
+      <div class="legend"><span class="k-g">━ OUT (0/1)</span><span class="k-g">▲ yükselen kenar (1 / devir)</span><span id="oFreq" class="k-c"></span></div>
+    </section>
+
+    <section class="sec calc" id="secCalc">
+      <h3>Mikrodenetleyici: kenar sayımı <em id="gNow">sayılıyor: 0</em></h3>
+      <div class="gatebar"><b id="gBar"></b></div>
+      <div class="row"><span>Ölçüm süresi</span><b>1 s</b></div>
+      <div class="row"><span>Algılanan yükselen kenar (son pencere)</span><b id="gN">—</b></div>
+      <div class="row"><span>Her tam devirdeki yükselen kenar</span><b>1</b></div>
+      <div class="formula" id="formula">
+        <div>RPM = (Saniyedeki darbe × 60) / Devir başına darbe</div>
+        <div id="f2">RPM = (— × 60) / 1</div>
+        <div id="f3" class="hl">RPM = —</div>
+      </div>
+      <div class="digital"><output id="dRPM">----</output><span>RPM</span></div>
+      <p class="small">1 s pencerede çözünürlük ±1 darbe = ±60 RPM. Bu yüzden pratikte iki kenar arasındaki süre de ölçülür: RPM = 60 / T.</p>
+    </section>
+
+    <section class="sec" id="secCtrl">
+      <h3>Kapalı çevrim hız kontrolü <em>PI kontrolcü · 100 Hz</em></h3>
+      <div class="ctrlgrid">
+        <div class="cell tgt"><label>Hedef hız</label><output id="cTgt">600</output></div>
+        <div class="cell meas"><label>Ölçülen hız</label><output id="cMeas">0</output></div>
+      </div>
+      <div class="dutybar"><b id="cDutyB"></b><span id="cDuty">D = 0 %</span></div>
+      <p class="small" id="cAvg">Motora uygulanan ortalama gerilim ≈ D × 12 V = 0.0 V</p>
+      <div id="decision" class="eq">—</div>
+      <div class="loop" id="loop"><span>Hall sensörü</span><i>→</i><span>MCU: RPM hesapla</span><i>→</i><span>Hedefle karşılaştır</span><i>→</i><span>PWM</span><i>→</i><span>Motor sürücüsü</span><i>→</i><span>Motor ↺</span></div>
+    </section>
+
+    <section class="sec" id="secPWM">
+      <h3>PWM sinyali (sürücü girişi) <em id="pVal">D = 0 %</em></h3>
+      <canvas id="cvP"></canvas>
+      <div class="legend"><span class="k-a">━ PWM (0 / 12 V)</span><span class="k-v"><i></i>ortalama gerilim</span></div>
+      <p class="small">PWM <b>frekansı sabittir</b> (bu örnekte 20 kHz; grafikte okunabilsin diye yavaşlatıldı). Değişen yalnızca <b>görev oranıdır</b>: darbenin yüksek kaldığı sürenin periyoda oranı. Görev oranı ile RPM doğrusal orantılı değildir (ölü bölge, sürtünme, yük).</p>
+    </section>
+  </aside>
+
+  <div id="caption" role="status" aria-live="polite"></div>
+  <div id="finale">
+    <h2>HALL EFFECT SENSÖRÜ</h2>
+    <p id="fin1">Manyetik alanı algılar.</p>
+    <p id="fin2">Dönüş hızının ölçülmesini sağlar.</p>
+    <p id="fin3">Motor hız kontrol sistemine geri bildirim verir.</p>
+  </div>
+
+  <footer id="foot">
+    <div class="ctl">
+      <button id="bPrev" title="Önceki sahne (←)">◀ Geri</button>
+      <button id="bPlay" class="primary" title="Başlat / Duraklat (Boşluk)">❚❚ Duraklat</button>
+      <button id="bNext" title="Sonraki sahne (→)">İleri ▶</button>
+    </div>
+    <div class="sep"></div>
+    <div class="ctl"><label for="rSpeed">Animasyon hızı</label><input id="rSpeed" type="range" min="0.1" max="2" step="0.05" value="1"><output id="oSpeed">1.00×</output></div>
+    <div class="sep"></div>
+    <div class="ctl"><label><input id="tField" type="checkbox" checked> Manyetik alan</label><label><input id="tSig" type="checkbox" checked> Sensör sinyali</label></div>
+    <div class="sep"></div>
+    <div class="ctl"><button id="bCam" title="Kamerayı sıfırla">⟲ Kamerayı sıfırla</button></div>
+  </footer>
+  <div id="loading">3D SAHNE HAZIRLANIYOR…</div>
+</div>
+<section class="block alt" id="devre" aria-labelledby="h-devre">
+  <div class="wrap">
+    <div class="sechead">
+      <span class="eyebrow">Bölüm 2 · Breadboard devresi</span>
+      <h2 id="h-devre">Devre şeması</h2>
+      <p>Arduino Uno ile kurulmuş hız ölçüm ve kontrol devresi. Üst yarı 12 V motor güç devresi, alt yarı 5 V sensör ve hedef hız devresi. Tüm GND hatları ortaktır.</p>
+    </div>
+    <figure class="boardfig"><svg id="svgStatic" viewBox="0 0 1080 900" role="img" aria-label="Arduino Uno, breadboard, A3144 Hall sensörü, MOSFET, diyot, dirençler, potansiyometre ve DC motordan oluşan devre"></svg></figure>
+    <div class="wirekey">
+      <span style="--c:#d8322f">Kırmızı: +5 V / +12 V</span>
+      <span style="--c:#25272b">Siyah: GND (ortak)</span>
+      <span style="--c:#e9b500">Sarı: sensör çıkışı → D2</span>
+      <span style="--c:#f07f1a">Turuncu: PWM → D9</span>
+      <span style="--c:#1a9b48">Yeşil: potansiyometre → A0</span>
+    </div>
+    <div class="cols2">
+      <div class="tablewrap">
+        <table class="bom">
+          <thead><tr><th>Etiket</th><th>Malzeme</th><th>Değer</th><th>Görevi</th></tr></thead>
+          <tbody>
+            <tr><td>A1</td><td>Arduino Uno R3</td><td>5 V, 16 MHz</td><td>D2 kesme ile kenar sayar, RPM hesaplar, D9'dan PWM üretir. USB'den beslenir.</td></tr>
+            <tr><td>U1</td><td>A3144 Hall sensörü</td><td>dijital, açık kollektör</td><td>S kutbu yaklaşınca çıkışı GND'ye çeker (LOW).</td></tr>
+            <tr><td>R1</td><td>Direnç (pull-up)</td><td>10 kΩ</td><td>Sensör bırakınca D2'yi 5 V'a çeker (HIGH).</td></tr>
+            <tr><td>C1</td><td>Seramik kondansatör</td><td>100 nF</td><td>Sensör beslemesindeki gürültüyü süzer.</td></tr>
+            <tr><td>RV1</td><td>Potansiyometre</td><td>10 kΩ</td><td>Hedef hız ayarı (A0). Hedef = A0 + 200 RPM.</td></tr>
+            <tr><td>R2</td><td>Direnç (kapı)</td><td>220 Ω</td><td>D9 ile MOSFET kapısı arasındaki akımı sınırlar.</td></tr>
+            <tr><td>R3</td><td>Direnç (pull-down)</td><td>10 kΩ</td><td>Arduino açılırken kapıyı LOW tutar, motor kendiliğinden dönmez.</td></tr>
+            <tr><td>Q1</td><td>N-kanal MOSFET</td><td>IRLZ44N</td><td>Lojik seviyeli anahtar: motoru alt taraftan (GND) açıp kapatır.</td></tr>
+            <tr><td>D1</td><td>Diyot</td><td>1N4007</td><td>Serbest dönüş diyotu: MOSFET kapanınca motor akımına yol verir.</td></tr>
+            <tr><td>C2</td><td>Elektrolitik kondansatör</td><td>100 µF / 25 V</td><td>12 V beslemeyi PWM darbelerinde dengeler.</td></tr>
+            <tr><td>M1</td><td>DC motor + mıknatıs diski</td><td>12 V</td><td>Mile takılı diskte bir N, bir S kutbu: tur başına 1 darbe.</td></tr>
+            <tr><td>V1</td><td>DC güç kaynağı</td><td>12 V</td><td>Motor beslemesi (GND Arduino ile ortak).</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <details class="code" open>
+        <summary>Arduino kodu (hız ölçümü + PI hız kontrolü)</summary>
+<pre>const byte HALL_PIN = 2;   // A3144 OUT (10 kΩ pull-up)
+const byte PWM_PIN  = 9;   // MOSFET kapısı (220 Ω)
+const byte POT_PIN  = A0;  // hedef hız potansiyometresi
+
+volatile unsigned long sonKenar = 0;
+volatile unsigned long periyot  = 0;   // iki düşen kenar arası (µs)
+volatile bool yeniOlcum = false;
+
+float integ = 0;                        // PI kontrolcünün integral kısmı
+const float KP = 0.077, KI = 0.64;      // PWM birimi (0–255) cinsinden
+
+void hallKesme() {                      // her turda 1 kez çalışır
+  unsigned long simdi = micros();
+  periyot  = simdi - sonKenar;
+  sonKenar = simdi;
+  yeniOlcum = true;
+}
+
+void setup() {
+  pinMode(HALL_PIN, INPUT);             // pull-up dışarıda (R1)
+  pinMode(PWM_PIN, OUTPUT);
+  attachInterrupt(digitalPinToInterrupt(HALL_PIN), hallKesme, FALLING);
+  Serial.begin(115200);
+}
+
+void loop() {
+  if (!yeniOlcum) return;
+  noInterrupts(); unsigned long T = periyot; yeniOlcum = false; interrupts();
+
+  float rpm   = 60000000.0 / T;         // tur başına 1 darbe
+  int   hedef = analogRead(POT_PIN) + 200;
+  float hata  = hedef - rpm;
+
+  integ += KI * hata * (T / 1e6);
+  integ  = constrain(integ, 0, 255);
+  int pwm = constrain(KP * hata + integ, 0, 255);
+  analogWrite(PWM_PIN, pwm);            // D9: 490 Hz PWM
+
+  Serial.print("T="); Serial.print(T / 1000.0, 1);
+  Serial.print(" ms  RPM="); Serial.print(rpm, 0);
+  Serial.print("  Hedef="); Serial.print(hedef);
+  Serial.print("  PWM="); Serial.println(pwm);
+}</pre>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="sim" aria-labelledby="h-sim">
+  <div class="wrap">
+    <div class="sechead">
+      <span class="eyebrow">Bölüm 3 · Çalışan devre</span>
+      <h2 id="h-sim">Devre simülasyonu: bir turda neler oluyor?</h2>
+      <p>Gerçekte 600 RPM'de bir tur 100 ms sürer. Burada yavaş çekimde akımın yolu, sensör sinyali, RPM hesabı ve PWM ayarı adım adım gösterilir.</p>
+    </div>
+    <div class="simgrid">
+      <div class="simboard"><svg id="svgSim" viewBox="0 0 1080 900" role="img" aria-label="Çalışan devre simülasyonu"></svg></div>
+      <div class="simside">
+        <div class="card">
+          <h3>Kontrol <em id="sTurn">Tur 0</em></h3>
+          <div class="btnrow">
+            <button class="btn primary" id="sPlay">❚❚ Duraklat</button>
+            <button class="btn" id="sReset">⟲ Baştan</button>
+            <button class="btn" id="sPrev" title="Önceki adıma dön">◀ Önceki adım</button>
+            <button class="btn" id="sNext" title="Sonraki adıma geç">Sonraki adım ▶</button>
+            <label><input type="checkbox" id="sExplain"> Her turu ayrıntılı açıkla</label>
+          </div>
+          <div class="btnrow" style="margin-top:10px">
+            <label for="sSlow">Yavaş çekim</label><input type="range" id="sSlow" min="3" max="16" step="1" value="6"><output id="oSlow">1 tur ≈ 6 s</output>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Potansiyometre (hedef hız) <em id="sTgtTxt">A0 = 400 → 600 RPM</em></h3>
+          <div class="potrow"><input type="range" id="sPot" min="0" max="1023" step="1" value="400" aria-label="Potansiyometre A0 değeri">
+            <button class="btn sm" data-t="600">600</button><button class="btn sm" data-t="900">900</button><button class="btn sm" data-t="1200">1200</button></div>
+        </div>
+        <div class="card">
+          <h3>Bir turda olanlar</h3>
+          <ol class="steps-l" id="sSteps">
+            <li><b>1</b><div><strong>PWM açık: D9 HIGH, motora gerilim verilir</strong><span class="sum">D9 = 5 V → MOSFET iletimde → motor akımı</span><div class="more">
+              <p>Arduino motoru doğrudan çalıştıramaz: bir pin en fazla yaklaşık 20 mA verebilir, motor ise yüzlerce mA çeker. Bu yüzden D9 pini yalnızca MOSFET'in (Q1) kapısını (gate) kontrol eder. MOSFET de 12 V'luk motor akımını açıp kapatan elektronik bir anahtar gibi çalışır.</p>
+              <p>D9 HIGH (5 V) olduğunda akım R2 (220 Ω) üzerinden MOSFET'in kapısına gider ve kapıyı mikrosaniyeler içinde doldurur (beyaz noktalar). Kapı gerilimi eşiği (yaklaşık 1–2 V) geçince MOSFET'in drain–source yolu iletime geçer ve direnci yalnızca yaklaşık 0.025 Ω olur.</p>
+              <p>Böylece akım 12 V kaynağın + ucundan motora, motordan MOSFET'in drain ucuna, oradan source üzerinden GND'ye ve kaynağın − ucuna geri döner (mavi noktalar). Motor bu sürede tam 12 V görür, akımı artar ve hızlanmaya çalışır.</p></div></div></li>
+            <li><b>2</b><div><strong>PWM kapalı: D9 LOW, akım diyottan döner</strong><span class="sum">D9 = 0 V → MOSFET kesimde · görev oranı</span><div class="more">
+              <p>D9 LOW (0 V) olunca kapıdaki yük boşalır; R3 (10 kΩ) kapıyı GND seviyesinde tutar. MOSFET kesime geçer ve 12 V kaynaktan motora akım gitmez.</p>
+              <p>Ancak motorun içi bir bobindir ve bobindeki akım bir anda sıfırlanamaz. Akım D1 diyotu üzerinden motorun + ucuna geri dönerek küçük bir döngü oluşturur ve yavaşça azalır (mor noktalar). D1 olmasaydı bu akım MOSFET üzerinde yüzlerce voltluk bir gerilim sıçraması yaratır ve onu bozabilirdi.</p>
+              <p>D9 saniyede 490 kez HIGH ve LOW olur; bir periyot 1 / 490 = 2.04 ms'dir. Bu periyot hiç değişmez. Değişen, HIGH süresinin periyoda oranıdır: buna <b>görev oranı</b> denir. <code>analogWrite(9, 89)</code> yazıldığında HIGH süresi 89 / 255 = %35 olur.</p>
+              <p>Motor bu hızlı açılıp kapanmayı tek tek hissetmez, ortalamasını hisseder: ortalama gerilim ≈ görev oranı × 12 V. Görev oranı arttıkça HIGH süresi uzar, motor daha uzun süre 12 V görür ve hızlanır; azaldıkça yavaşlar. Simülasyonda PWM izlenebilsin diye çok yavaşlatıldı.</p></div></div></li>
+            <li><b>3</b><div><strong>Mıknatıs sensöre yaklaşıyor</strong><span class="sum">D2 = HIGH · sensör çıkışı serbest</span><div class="more">
+              <p>Motor milindeki diskte bir N (kırmızı) ve bir S (mavi) kutbu vardır. Disk milde döner; A3144 sensörü ise sabit bir braket üzerindedir ve dönmez.</p>
+              <p>S kutbu sensöre yaklaştıkça sensörün bulunduğu noktadaki manyetik alan (B) artar. Alan henüz açma eşiğinin (B_OP = 35 mT) altında olduğu için sensörün çıkış transistörü kapalıdır. A3144 açık kollektör çıkışlıdır: transistör kapalıyken OUT ucu hiçbir yere bağlı değildir.</p>
+              <p>Boşta kalan bu ucu 10 kΩ'luk R1 direnci 5 V'a çeker, bu yüzden Arduino D2 pininde HIGH (≈ 5 V) okur. R1'den akım akmaz, çünkü akımın devam edeceği bir yol yoktur. Sensörün kendisi ise 5 V hattından birkaç mA çekerek çalışır (yeşil noktalar).</p></div></div></li>
+            <li><b>4</b><div><strong>S kutbu eşiği geçti: düşen kenar</strong><span class="sum">D2: HIGH → LOW · kesme tetiklenir</span><div class="more">
+              <p>Alan 35 mT'yi geçtiği anda sensörün içinde sırasıyla şunlar olur: Hall elemanında alanla orantılı, çok küçük bir Hall gerilimi oluşur; iç yükselteç bunu büyütür; Schmitt tetikleyici eşiğin aşıldığını algılar ve çıkış transistörünü iletime sokar.</p>
+              <p>İletime geçen transistör OUT ucunu GND'ye bağlar. Artık R1 üzerinden 5 V'tan GND'ye küçük bir akım akar (pembe noktalar) ve D2'deki gerilim 5 V'tan yaklaşık 0.2 V'a düşer. HIGH'dan LOW'a olan bu geçişe <b>düşen kenar</b> denir. Diskte tek S kutbu olduğu için bu kenar her turda yalnızca bir kez oluşur.</p>
+              <p>Arduino D2'yi sürekli kontrol etmez. <code>setup()</code> içinde <code>attachInterrupt(…, hallKesme, FALLING)</code> ile donanıma “düşen kenar olursa haber ver” denmiştir. Kenar gelince işlemci o an yaptığı işi bırakır ve <code>hallKesme()</code> fonksiyonuna atlar.</p></div></div></li>
+            <li><b>5</b><div><strong>Kesme: tur süresi T ölçülür</strong><span class="sum">T = şimdiki kenar − önceki kenar</span><div class="more">
+              <p><code>hallKesme()</code> önce <code>micros()</code> ile Arduino açıldığından beri geçen süreyi mikrosaniye cinsinden okur. Bir önceki düşen kenarın zamanı <code>sonKenar</code> değişkeninde saklıdır.</p>
+              <p>İkisinin farkı T, mıknatısın tam bir tur atması için geçen süredir. Ardından şimdiki zaman yeni <code>sonKenar</code> olarak saklanır ve <code>yeniOlcum</code> bayrağı <code>true</code> yapılır.</p>
+              <p>Kesme fonksiyonu bilerek kısa tutulur (birkaç mikrosaniye). Uzun hesaplar <code>loop()</code> içinde yapılır ki işlemci bir sonraki kenarı kaçırmasın. Bu değişkenler hem kesmede hem <code>loop()</code>'ta kullanıldığı için <code>volatile</code> tanımlanmıştır. Bu adımda hiçbir kabloda yeni bir akım yoktur; her şey Arduino'nun içinde olur.</p></div></div></li>
+            <li><b>6</b><div><strong>Hız hesabı: RPM = 60 / T</strong><span class="sum">kodda: 60 000 000 / T(µs)</span><div class="more">
+              <p><code>loop()</code> bayrağı görür, kesmeleri bir anlığına kapatıp T'yi güvenle kopyalar. Böylece çok baytlı değer okunurken yeni bir kesme gelip değeri yarıda değiştiremez.</p>
+              <p>Bir tur T saniye sürüyorsa motor saniyede 1/T tur, dakikada 60/T tur atar. T mikrosaniye cinsinden tutulduğu için kodda formül <code>60000000.0 / T</code> olarak yazılır. Devir başına bir darbe olduğu için ayrıca bölmeye gerek yoktur; diskte 2 S kutbu olsaydı sonuç 2'ye bölünürdü.</p>
+              <p>Bu periyot yöntemi her turda yeni bir hız değeri verir. 1 saniye boyunca darbe saymaktan çok daha hızlı tepki verdiği için hız kontrolüne uygundur.</p></div></div></li>
+            <li><b>7</b><div><strong>Hedefle karşılaştır, yeni PWM'i hesapla</strong><span class="sum">A0 okunur → PI kontrol → analogWrite(9, pwm)</span><div class="more">
+              <p>Arduino potansiyometreyi <code>analogRead(A0)</code> ile okur. Potansiyometrenin orta ucu 0–5 V arasında bir gerilim verir (yeşil noktalar); Arduino'nun ADC'si bunu 0–1023 arası bir sayıya çevirir. Kodda hedef = A0 + 200 RPM alınır.</p>
+              <p>Hata = hedef − ölçülen. Hata pozitifse motor hedeften yavaştır, negatifse hızlıdır. PI kontrolcü iki parçadan oluşur: <b>P</b> (orantısal) kısmı hatanın o anki büyüklüğüne göre hemen tepki verir; <b>I</b> (integral) kısmı hata sürdükçe her turda birikir ve motoru sonunda tam hedefe oturtur.</p>
+              <p>Toplam 0–255 aralığına sınırlanır ve <code>analogWrite(9, pwm)</code> ile D9'a yazılır. Yeni değer bir sonraki PWM periyodundan itibaren geçerlidir. Etkisini bir sonraki turun 1. ve 2. adımında görürsünüz: HIGH süresi uzar ya da kısalır.</p></div></div></li>
+            <li><b>8</b><div><strong>S kutbu geçiyor, sonra D2 yeniden HIGH</strong><span class="sum">D2: LOW → HIGH · bu kenar sayılmaz</span><div class="more">
+              <p>S kutbu sensörün önünden geçerken alan eşiğin üstünde kalır, D2 de LOW kalır. Bu sürede R1 üzerinden yaklaşık 5 V / 10 kΩ = 0.5 mA akım, sensörün çıkış transistörü üzerinden GND'ye akar (pembe noktalar).</p>
+              <p>Disk döndükçe S kutbu uzaklaşır ve alan azalır. Alan bırakma eşiğinin (B_RP = 25 mT) altına inince sensör çıkış transistörünü kapatır; R1 D2'yi yeniden 5 V'a çeker ve D2 HIGH olur.</p>
+              <p>İki eşik arasındaki 10 mT fark (histerezis), alan eşik sınırında titrerken tek tur yerine birden fazla darbe sayılmasını önler. Bu yükselen kenar sayılmaz, çünkü kesme yalnızca düşen kenara (<code>FALLING</code>) ayarlıdır. Disk dönmeye devam eder ve bir sonraki turda döngü 1. adımdan (PWM) yeniden başlar.</p></div></div></li>
+          </ol>
+          <div class="detail" id="sDetail" style="margin-top:10px">—</div>
+          <div class="exbar"><b id="sExBar"></b></div><div class="exnote" id="sExNote"></div>
+          <div class="power"><span class="pill on" id="sPill">D9 HIGH</span><span id="sPower">—</span></div>
+        </div>
+        <div class="card">
+          <h3>Canlı değerler</h3>
+          <div class="kv">
+            <div><label>Gerçek hız</label><output id="vReal">0</output></div>
+            <div><label>Ölçülen (son tur)</label><output id="vMeas">0</output></div>
+            <div><label>Hedef</label><output id="vTgt">0</output></div>
+            <div><label>PWM (D9)</label><output id="vPwm">0</output></div>
+            <div><label>Görev oranı</label><output id="vDuty">0 %</output></div>
+            <div><label>Motora ort. gerilim</label><output id="vVolt">0 V</output></div>
+            <div><label>Hata (hedef − ölçülen)</label><output id="vErr">—</output></div>
+            <div><label>D2 (sensör)</label><output id="vD2">HIGH</output></div>
+            <div><label>Son periyot T</label><output id="vT">—</output></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Sinyaller (yavaş çekim) <em>D2 · D9</em></h3>
+          <canvas class="sc" id="cScope"></canvas>
+          <div class="wirekey" style="font-size:12px;margin-top:6px"><span style="--c:#c99a00">D2 sensör (düşen kenar = 1 tur)</span><span style="--c:#f07f1a">D9 PWM (gösterim yavaşlatıldı)</span></div>
+        </div>
+        <div class="card">
+          <h3>Tur tur hız <em>ölçülen · hedef</em></h3>
+          <canvas class="sc" id="cTurns"></canvas>
+        </div>
+        <div class="card">
+          <h3>Seri monitör <em>115200 baud</em></h3>
+          <div class="serial" id="sSerial"></div>
+        </div>
+        <div class="wirekey" style="font-size:12px">
+          <span class="dot" style="--c:#14b8e6">Motor akımı (D9 HIGH)</span>
+          <span class="dot" style="--c:#a05cf0">Diyot akımı (D9 LOW)</span>
+          <span class="dot" style="--c:#22c55e">5 V besleme</span>
+          <span class="dot" style="--c:#ff4fb8">Pull-up akımı (D2 LOW)</span>
+          <span class="dot" style="--c:#ffffff;border:1px solid #999">Kapı sinyali</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function(){
+'use strict';
+const TAU=Math.PI*2;
+const $=s=>document.querySelector(s);
+const APPEL=document.getElementById('app');
+const VW=()=>APPEL.clientWidth, VH=()=>APPEL.clientHeight;
+let appVisible=true;
+new IntersectionObserver(es=>{appVisible=es[0].isIntersecting;},{threshold:0.02}).observe(APPEL);
+const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
+const V=(x,y,z)=>new THREE.Vector3(x,y,z);
+const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* =========================================================
+   1) SİMÜLASYON ÇEKİRDEĞİ — tek ortak simülasyon zamanı
+   motor açısı → sensördeki B → dijital çıkış → RPM → PWM
+   ========================================================= */
+const MOTOR={RPMMAX:2000,D0:0.12,EXP:0.9,TAU:0.4,VS:12};   // DC motor + yük modeli (birinci derece)
+const HALL={B0:60,BOP:35,BRP:25};                          // sensör noktasındaki tepe alan, eşikler (mT)
+const CTRL={KP:0.00015,KI:0.0006,DT:0.01};                 // PI hız kontrolcüsü
+const PPR=1;                                               // devir başına yükselen kenar
+function rpmSS(D){ if(D<=MOTOR.D0) return 0; return MOTOR.RPMMAX*Math.pow((D-MOTOR.D0)/(1-MOTOR.D0),MOTOR.EXP); }
+function dutyFor(r){ if(r<=0) return 0; return MOTOR.D0+(1-MOTOR.D0)*Math.pow(Math.min(1,r/MOTOR.RPMMAX),1/MOTOR.EXP); }
+
+const S={t:0,angle:0,rpm:0,duty:0,mode:'manual',rpmCmd:0,target:600,integ:0,ctrlAcc:0,
+  B:0,out:0,lastEdge:-1,period:0,measured:0,pendingEdges:0,
+  gateStart:0,gateCount:0,gateLast:null,gateSeq:0,
+  useLab:false,labB:0,labMagX:-7,dutyK:-1};
+
+// geçmiş (grafikler için) — 2 ms örnekleme
+const HN=8192, hT=new Float64Array(HN), hB=new Float32Array(HN), hO=new Uint8Array(HN); let hI=0,hCount=0,hTick=0;
+function hPush(t,b,o){hT[hI]=t;hB[hI]=b;hO[hI]=o;hI=(hI+1)%HN;if(hCount<HN)hCount++;}
+function hEach(tMin,fn){let k=0,idx=(hI-1+HN)%HN;while(k<hCount&&hT[idx]>=tMin){k++;idx=(idx-1+HN)%HN;}
+  const s=(hI-k+HN)%HN;for(let j=0;j<k;j++){const q=(s+j)%HN;fn(hT[q],hB[q],hO[q]);}}
+const EN=256, eT=new Float64Array(EN); let eI=0,eCount=0;
+const DUTYN=128, dutyRing=new Float32Array(DUTYN); const PWM_SHOW=0.2; // gösterim periyodu (s)
+
+function sensorB(){
+  if(S.useLab) return S.labB;
+  // Çapsal mıknatıs: N rotor yerel +x, S yerel −x. Sensör +y yönünde sabit.
+  // B > 0  ⇔  S kutbu sensöre bakıyor.
+  return HALL.B0*Math.cos(S.angle+Math.PI-Math.PI/2);
+}
+function onRisingEdge(te){
+  eT[eI]=te; eI=(eI+1)%EN; if(eCount<EN)eCount++;
+  if(S.useLab) return;
+  if(S.lastEdge>0){ S.period=te-S.lastEdge; S.measured=60/(S.period*PPR); }
+  S.lastEdge=te;
+  if(te>=S.gateStart) S.gateCount++;
+  S.pendingEdges++;
+}
+function physStep(dt){
+  if(S.mode==='closed'){
+    S.ctrlAcc+=dt;
+    if(S.ctrlAcc>=CTRL.DT){ S.ctrlAcc-=CTRL.DT;
+      const e=S.target-S.measured;
+      S.integ=clamp(S.integ+CTRL.KI*e*CTRL.DT,0,1);
+      S.duty=clamp(CTRL.KP*e+S.integ,0,1);
+    }
+  } else S.duty=dutyFor(S.rpmCmd);
+  // motor (birinci dereceden mekanik model)
+  S.rpm+=(rpmSS(S.duty)-S.rpm)*dt/MOTOR.TAU;
+  S.angle+=S.rpm/60*TAU*dt; if(S.angle>TAU*1000) S.angle-=TAU*1000;
+  S.t+=dt;
+  // 1 s kapı penceresi
+  if(S.t>=S.gateStart+1){ S.gateLast={count:S.gateCount,t:S.gateStart}; S.gateStart+=1; S.gateCount=0; S.gateSeq++; }
+  // Hall sensörü (histerezisli eşik)
+  const Bp=S.B, B=sensorB(); S.B=B;
+  if(!S.out && B>=HALL.BOP){ S.out=1; const f=clamp((HALL.BOP-Bp)/((B-Bp)||1e-9),0,1); onRisingEdge(S.t-dt+dt*f); }
+  else if(S.out && B<=HALL.BRP){ S.out=0; }
+  // periyot ölçümü zaman aşımı
+  if(S.lastEdge>0){ const since=S.t-S.lastEdge;
+    if(since>3) S.measured=0; else if(S.period>0&&since>S.period) S.measured=Math.min(S.measured,60/(since*PPR)); }
+  if(++hTick>=2){hTick=0;hPush(S.t,B,S.out);}
+  const k=Math.floor(S.t/PWM_SHOW); if(k!==S.dutyK){S.dutyK=k;dutyRing[((k%DUTYN)+DUTYN)%DUTYN]=S.duty;}
+}
+
+/* =========================================================
+   2) THREE.JS SAHNESİ
+   ========================================================= */
+let renderer,scene,camera,controls;
+const P={housing:1,magnet:0,field:0,sensor:0,mcu:0,sys:0,sig:0,shift:0,lights:0}; // yumuşak geçişli görsel parametreler
+const R={}; // nesne referansları
+const LAB=V(0,-60,0);
+
+function canvasTex(draw,w=256,h=128){const cv=document.createElement('canvas');cv.width=w;cv.height=h;draw(cv.getContext('2d'),w,h);
+  const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;t.anisotropy=4;return t;}
+function textTex(txt,{w=256,h=128,font='700 80px "Space Grotesk",sans-serif',color='#fff',bg=null}={}){
+  return canvasTex((c)=>{if(bg){c.fillStyle=bg;c.fillRect(0,0,w,h);}c.fillStyle=color;c.font=font;c.textAlign='center';c.textBaseline='middle';c.fillText(txt,w/2,h/2+3);},w,h);}
+let glowTex;
+function makeGlow(){glowTex=canvasTex((c,w,h)=>{const g=c.createRadialGradient(w/2,h/2,0,w/2,h/2,w/2);g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.25,'rgba(255,255,255,.6)');g.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=g;c.fillRect(0,0,w,h);},128,128);}
+function glowSprite(color,scale){const m=new THREE.SpriteMaterial({map:glowTex,color,transparent:true,blending:THREE.NormalBlending,depthWrite:false,opacity:0});const s=new THREE.Sprite(m);s.scale.setScalar(scale);return s;}
+
+function initThree(){
+  renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+  renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
+  renderer.setSize(VW(),VH());
+  renderer.outputEncoding=THREE.sRGBEncoding;
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;
+  renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  renderer.localClippingEnabled=false;
+  $('#stage').appendChild(renderer.domElement);
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0xe7edf5);
+  scene.fog=new THREE.Fog(0xe7edf5,30,95);
+  camera=new THREE.PerspectiveCamera(38,VW()/VH(),0.05,200);
+  camera.position.set(0,2,20);
+  controls=new THREE.OrbitControls(camera,renderer.domElement);
+  controls.enableDamping=true; controls.enableZoom=false; controls.dampingFactor=0.08; controls.minDistance=0.4; controls.maxDistance=40;
+  controls.addEventListener('start',()=>{userCam=true;});
+  makeGlow();
+
+  // ortam yansıması (prosedürel stüdyo)
+  const env=new THREE.Scene();
+  env.add(new THREE.Mesh(new THREE.BoxGeometry(20,20,20),new THREE.MeshBasicMaterial({color:0x8d9db4,side:THREE.BackSide})));
+  const pan=(w,h,p,c)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({color:c,side:THREE.DoubleSide}));m.position.copy(p);m.lookAt(0,0,0);env.add(m);};
+  pan(10,3,V(0,9.5,0),new THREE.Color(3,3,3.2)); pan(4,7,V(9.5,2,3),new THREE.Color(1.6,1.9,2.4));
+  pan(4,7,V(-9.5,1,-3),new THREE.Color(.6,1.0,1.8)); pan(7,2,V(0,2,9.5),new THREE.Color(1.3,1.3,1.4));
+  const pm=new THREE.PMREMGenerator(renderer); scene.environment=pm.fromScene(env,0.035).texture;
+
+  const hemi=new THREE.HemisphereLight(0xdfeaff,0x8a97ab,0.75); scene.add(hemi);
+  const key=new THREE.DirectionalLight(0xffffff,1.5); key.position.set(6,11,9); key.castShadow=true;
+  key.shadow.mapSize.set(2048,2048); Object.assign(key.shadow.camera,{left:-9,right:9,top:9,bottom:-9,near:1,far:40}); key.shadow.bias=-0.0004;
+  scene.add(key);
+  const rim=new THREE.DirectionalLight(0x5aa8ff,0.9); rim.position.set(-9,4,-7); scene.add(rim);
+  const lab=new THREE.PointLight(0x7fc8ff,1.2,30); lab.position.copy(LAB).add(V(-3,6,4)); scene.add(lab);
+
+  // laboratuvar zemini
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(90,90),new THREE.MeshStandardMaterial({color:0xdde4ee,roughness:.95,metalness:.05}));
+  floor.rotation.x=-Math.PI/2; floor.position.y=-1.95; floor.receiveShadow=true; scene.add(floor);
+  const grid=new THREE.GridHelper(44,44,0xa9b8cd,0xc7d2e1); grid.position.y=-1.94; grid.material.transparent=true; grid.material.opacity=.9; scene.add(grid);
+
+  buildMotor(); buildMagnetAndField(); buildSensor(); buildElectronics(); buildLab(); buildPulses(); buildLabels();
+  addEventListener('resize',onResize); onResize();
+}
+
+/* ---------- Motor (fırçalı DC motor, prosedürel) ---------- */
+function buildMotor(){
+  const mHousing=new THREE.MeshStandardMaterial({color:0x66748a,metalness:.8,roughness:.36,transparent:true,side:THREE.DoubleSide});
+  const mCap=new THREE.MeshStandardMaterial({color:0x465265,metalness:.75,roughness:.4,transparent:true});
+  R.housingMats=[mHousing,mCap];
+  const housing=new THREE.Group(); scene.add(housing); R.housing=housing;
+  const add=(g,m,p,rot)=>{const o=new THREE.Mesh(g,m);if(p)o.position.copy(p);if(rot)o.rotation.set(rot.x,rot.y,rot.z);o.castShadow=true;o.receiveShadow=true;housing.add(o);return o;};
+  add(new THREE.CylinderGeometry(1.6,1.6,3.6,72,1,true),mHousing,null,V(Math.PI/2,0,0));
+  for(let i=0;i<22;i++){const a=i/22*TAU;if(Math.sin(a)<-0.8)continue;
+    const f=add(new THREE.BoxGeometry(0.16,0.07,3.3),mHousing,V(Math.cos(a)*1.67,Math.sin(a)*1.67,0));f.rotation.z=a;}
+  add(new THREE.CylinderGeometry(1.68,1.68,0.22,72),mCap,V(0,0,1.86),V(Math.PI/2,0,0));
+  add(new THREE.CylinderGeometry(1.68,1.68,0.22,72),mCap,V(0,0,-1.86),V(Math.PI/2,0,0));
+  add(new THREE.CylinderGeometry(0.5,0.56,0.22,40),mCap,V(0,0,2.06),V(Math.PI/2,0,0));
+  add(new THREE.CylinderGeometry(0.5,0.56,0.22,40),mCap,V(0,0,-2.06),V(-Math.PI/2,0,0));
+  for(let i=0;i<4;i++){const a=Math.PI/4+i*Math.PI/2;
+    add(new THREE.CylinderGeometry(0.07,0.07,0.1,16),mHousing,V(Math.cos(a)*1.45,Math.sin(a)*1.45,2.0),V(Math.PI/2,0,0));
+    add(new THREE.CylinderGeometry(0.07,0.07,0.1,16),mHousing,V(Math.cos(a)*1.45,Math.sin(a)*1.45,-2.0),V(Math.PI/2,0,0));}
+  for(const z of [-1.15,1.15]){ add(new THREE.BoxGeometry(2.9,0.22,0.7),mCap,V(0,-1.84,z)); add(new THREE.BoxGeometry(1.5,0.4,0.42),mCap,V(0,-1.58,z)); }
+  add(new THREE.BoxGeometry(0.9,0.42,1.0),mCap,V(0,1.79,-0.6));
+  add(new THREE.BoxGeometry(0.96,0.06,1.06),mHousing,V(0,2.02,-0.6));
+  add(new THREE.CylinderGeometry(0.09,0.09,0.22,16),mHousing,V(0.55,1.79,-0.6),V(0,0,Math.PI/2));
+  const plateMat=new THREE.MeshBasicMaterial({map:textTex('DC MOTOR · 12 V',{w:512,h:128,font:'600 54px "JetBrains Mono",monospace',color:'#cfe0ff',bg:'#1b2a44'}),transparent:true});
+  R.housingMats.push(plateMat);
+  const plate=new THREE.Mesh(new THREE.PlaneGeometry(0.78,0.2),plateMat); plate.position.set(0,1.79,-0.095); housing.add(plate);
+
+  // stator kalıcı mıknatısları (DC motor alan mıknatısları)
+  const arc=(r1,r2,a0,a1,d)=>{const s=new THREE.Shape();s.absarc(0,0,r2,a0,a1,false);s.absarc(0,0,r1,a1,a0,true);const g=new THREE.ExtrudeGeometry(s,{depth:d,bevelEnabled:false,curveSegments:28});g.translate(0,0,-d/2);return g;};
+  const mStatorMag=new THREE.MeshStandardMaterial({color:0x3b414e,metalness:.35,roughness:.55});
+  R.statorMags=[];
+  for(const c of [0,Math.PI]){const m=new THREE.Mesh(arc(1.05,1.36,c-0.95,c+0.95,2.5),mStatorMag);m.position.z=0.1;m.castShadow=true;scene.add(m);R.statorMags.push(m);}
+  // fırçalar
+  const mBrush=new THREE.MeshStandardMaterial({color:0x26272c,roughness:.8});
+  for(const s of [1,-1]){const b=new THREE.Mesh(new THREE.BoxGeometry(0.12,0.2,0.16),mBrush);b.position.set(0,s*0.44,-1.55);scene.add(b);}
+
+  // ROTOR grubu (dönen her şey burada)
+  const rotor=new THREE.Group(); scene.add(rotor); R.rotor=rotor;
+  const n=12,rO=0.95,rI=0.66,fr=0.58,step=TAU/n;
+  const sh=new THREE.Shape(); const Pp=(r,a)=>[r*Math.cos(a),r*Math.sin(a)];
+  for(let k=0;k<n;k++){const a0=k*step,a1=a0+step*fr,a2=(k+1)*step;
+    if(k===0)sh.moveTo(...Pp(rI,a0)); sh.lineTo(...Pp(rO,a0));
+    for(let i=1;i<=4;i++)sh.lineTo(...Pp(rO,a0+(a1-a0)*i/4)); sh.lineTo(...Pp(rI,a1));
+    for(let i=1;i<=4;i++)sh.lineTo(...Pp(rI,a1+(a2-a1)*i/4));}
+  const hole=new THREE.Path(); hole.absarc(0,0,0.17,0,TAU,true); sh.holes.push(hole);
+  const coreG=new THREE.ExtrudeGeometry(sh,{depth:2.4,bevelEnabled:false,curveSegments:24}); coreG.translate(0,0,-1.2);
+  const mCore=new THREE.MeshStandardMaterial({color:0x56606f,metalness:.75,roughness:.42});
+  const core=new THREE.Mesh(coreG,mCore); core.position.z=0.1; core.castShadow=true; rotor.add(core);
+  const mCopper=new THREE.MeshStandardMaterial({color:0xc8783a,metalness:1,roughness:.33});
+  for(let k=0;k<n;k++){const a=k*step+step*(fr+(1-fr)/2);
+    const w=new THREE.Mesh(new THREE.BoxGeometry((rO-rI)*0.9,(1-fr)*step*rI*0.9,2.4),mCopper);
+    w.position.set(Math.cos(a)*(rI+rO)/2,Math.sin(a)*(rI+rO)/2,0.1); w.rotation.z=a; rotor.add(w);}
+  for(const z of [0.1-1.27,0.1+1.27]){const t=new THREE.Mesh(new THREE.TorusGeometry((rI+rO)/2,0.1,10,48),mCopper);t.position.z=z;rotor.add(t);}
+  const comm=new THREE.Mesh(new THREE.CylinderGeometry(0.33,0.33,0.45,36),mCopper); comm.rotation.x=Math.PI/2; comm.position.z=-1.55; rotor.add(comm);
+  const mGap=new THREE.MeshStandardMaterial({color:0x111114});
+  for(let k=0;k<12;k++){const a=k/12*TAU;const g=new THREE.Mesh(new THREE.BoxGeometry(0.02,0.03,0.46),mGap);g.position.set(Math.cos(a)*0.325,Math.sin(a)*0.325,-1.55);g.rotation.z=a;rotor.add(g);}
+  const mSteel=new THREE.MeshStandardMaterial({color:0xc3cbd6,metalness:.95,roughness:.2});
+  const shaft=new THREE.Mesh(new THREE.CylinderGeometry(0.17,0.17,6.0,32),mSteel); shaft.rotation.x=Math.PI/2; shaft.position.z=0.5; shaft.castShadow=true; rotor.add(shaft);
+  const keyM=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.06,0.5),mSteel); keyM.position.set(0,0.18,3.2); rotor.add(keyM);
+  // hızlı dönüş bulanıklığı (stroboskopik etkiyi önler)
+  R.rotorBlurMat=new THREE.MeshStandardMaterial({color:0x8a7b6b,metalness:.6,roughness:.5,transparent:true,opacity:0,depthWrite:false});
+  const rb=new THREE.Mesh(new THREE.CylinderGeometry(0.965,0.965,2.9,48,1,true),R.rotorBlurMat); rb.rotation.x=Math.PI/2; rb.position.z=0.1; rotor.add(rb);
+}
+
+/* ---------- Algılama mıknatısı + matematiksel alan çizgileri ---------- */
+function buildMagnetAndField(){
+  const mg=new THREE.Group(); mg.position.z=2.75; R.rotor.add(mg); R.magnet=mg;
+  const hub=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.42,32),new THREE.MeshStandardMaterial({color:0xbfc7d2,metalness:.85,roughness:.28}));
+  hub.rotation.x=Math.PI/2; mg.add(hub);
+  R.magMats=[];
+  const half=(col,t0)=>{const m=new THREE.MeshStandardMaterial({color:col,metalness:.25,roughness:.38,transparent:true});R.magMats.push(m);
+    const g=new THREE.CylinderGeometry(0.7,0.7,0.28,48,1,false,t0,Math.PI); g.rotateX(Math.PI/2);
+    const o=new THREE.Mesh(g,m); o.castShadow=true; mg.add(o);
+    // kesik yüz
+    return o;};
+  half(0xe0393e,0); half(0x2f6fe0,Math.PI);   // N: yerel +x (kırmızı), S: yerel −x (mavi)
+  const letter=(t,x)=>{const m=new THREE.MeshBasicMaterial({map:textTex(t,{w:128,h:128,font:'700 96px "Space Grotesk",sans-serif'}),transparent:true,depthWrite:false});R.magMats.push(m);
+    const p=new THREE.Mesh(new THREE.PlaneGeometry(0.3,0.3),m); p.position.set(x,0,0.145); mg.add(p); return p;};
+  R.letterN=letter('N',0.42); R.letterS=letter('S',-0.42);
+  R.magBlurMat=new THREE.MeshBasicMaterial({color:0x8d5ad6,transparent:true,opacity:0,depthWrite:false});
+  const bd=new THREE.Mesh(new THREE.CircleGeometry(0.705,48),R.magBlurMat); bd.position.z=0.147; mg.add(bd);
+
+  // Dipol alan çizgileri: r = L·sin²φ (φ: dipol ekseninden açı), meridyen düzlemi ψ ile döndürülür
+  const fg=new THREE.Group(); fg.position.z=2.75; R.rotor.add(fg); R.field=fg;
+  R.fieldMat=new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:0,depthWrite:false,toneMapped:false});
+  const sets=[[1.05,[0,180,30,-30,150,210]],[1.38,[0,180,30,-30,150,210]],[1.85,[0,180,26,-26,154,206]],[2.5,[0,180]],[3.3,[0,180]]];
+  const cN=new THREE.Color(0xff3b45), cM=new THREE.Color(0x9a6cff), cS=new THREE.Color(0x2f7bff);
+  const colAt=u=>u<.5?cN.clone().lerp(cM,u*2):cM.clone().lerp(cS,(u-.5)*2);
+  R.lines=[]; R.tubes=[]; const TS=90,RS=5,Rs=0.74;
+  for(const [L,psis] of sets) for(const pd of psis){
+    const psi=pd*Math.PI/180, fs=Math.asin(Math.sqrt(Rs/L)), pts=[];
+    for(let i=0;i<=80;i++){const f=lerp(fs,Math.PI-fs,i/80), r=L*Math.sin(f)**2;
+      pts.push(V(r*Math.cos(f),r*Math.sin(f)*Math.cos(psi),r*Math.sin(f)*Math.sin(psi)));}
+    const curve=new THREE.CatmullRomCurve3(pts);
+    const g=new THREE.TubeGeometry(curve,TS,pd%180===0?0.016:0.011,RS,false);
+    const cols=new Float32Array(g.attributes.position.count*3);
+    for(let i=0;i<=TS;i++){const c=colAt(i/TS);for(let j=0;j<=RS;j++){const q=(i*(RS+1)+j)*3;cols[q]=c.r;cols[q+1]=c.g;cols[q+2]=c.b;}}
+    g.setAttribute('color',new THREE.BufferAttribute(cols,3));
+    const mesh=new THREE.Mesh(g,R.fieldMat); fg.add(mesh); R.tubes.push({mesh,idx:g.index.count,per:RS*6,TS});
+    R.lines.push({sp:curve.getSpacedPoints(120),len:curve.getLength()});
+  }
+  // alan yönünü gösteren hareketli işaretçiler (N → S)
+  const np=R.lines.length*2, pos=new Float32Array(np*3), col=new Float32Array(np*3);
+  R.parts=[]; for(let i=0;i<np;i++) R.parts.push({l:i>>1,u:(i%2)*0.5+Math.random()*0.1});
+  const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.BufferAttribute(pos,3)); pg.setAttribute('color',new THREE.BufferAttribute(col,3));
+  R.partMat=new THREE.PointsMaterial({size:0.11,map:glowTex,vertexColors:true,transparent:true,opacity:0,blending:THREE.NormalBlending,depthWrite:false});
+  R.points=new THREE.Points(pg,R.partMat); fg.add(R.points); R.colAt=colAt;
+}
+
+/* ---------- Hall sensörü (sabit, rotorla dönmez) ---------- */
+function buildSensor(){
+  const g=new THREE.Group(); g.position.set(0,0.98,2.75); scene.add(g); R.sensor=g;
+  R.sensorMat=new THREE.MeshStandardMaterial({color:0x15171c,roughness:.42,metalness:.15,emissive:0x2bff7a,emissiveIntensity:0});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(0.26,0.2,0.13),R.sensorMat); body.castShadow=true; g.add(body);
+  const face=new THREE.Mesh(new THREE.PlaneGeometry(0.2,0.08),new THREE.MeshBasicMaterial({map:textTex('HALL',{w:256,h:96,font:'600 64px "JetBrains Mono",monospace',color:'#9fb2cc'}),transparent:true}));
+  face.position.set(0,0.03,0.066); g.add(face);
+  const mTin=new THREE.MeshStandardMaterial({color:0xd8dde4,metalness:.9,roughness:.25});
+  R.legs=[];
+  for(const x of [-0.085,0,0.085]){const l=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.54,8),mTin);l.position.set(x,0.37,0);g.add(l);R.legs.push(l);}
+  const br=new THREE.Mesh(new THREE.BoxGeometry(0.62,0.04,0.95),new THREE.MeshStandardMaterial({color:0xb9c2cd,metalness:.85,roughness:.3}));
+  br.position.set(0,0.66,-0.33); br.castShadow=true; g.add(br);
+  const pcb=new THREE.Mesh(new THREE.BoxGeometry(0.42,0.03,0.24),new THREE.MeshStandardMaterial({color:0x0f5a3a,roughness:.6}));
+  pcb.position.set(0,0.625,0); g.add(pcb);
+  R.sensorGlow=glowSprite(0x3dff8f,0.75); g.add(R.sensorGlow);
+}
+
+/* ---------- Elektronik: MCU, motor sürücüsü, besleme, kablolar ---------- */
+function buildElectronics(){
+  const board=(pos,w,h,col,txt,txtCol)=>{const g=new THREE.Group();g.position.copy(pos);scene.add(g);
+    const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,0.06),new THREE.MeshStandardMaterial({color:col,roughness:.55,metalness:.15}));b.castShadow=true;g.add(b);
+    const chip=new THREE.Mesh(new THREE.BoxGeometry(0.56,0.56,0.08),new THREE.MeshStandardMaterial({color:0x111216,roughness:.4}));chip.position.z=0.07;g.add(chip);
+    const lab=new THREE.Mesh(new THREE.PlaneGeometry(0.5,0.25),new THREE.MeshBasicMaterial({map:textTex(txt,{w:256,h:128,font:'600 54px "JetBrains Mono",monospace',color:txtCol}),transparent:true}));lab.position.z=0.112;g.add(lab);
+    const mPin=new THREE.MeshStandardMaterial({color:0xd9c27a,metalness:1,roughness:.3});
+    for(let i=0;i<8;i++){for(const s of [-1,1]){const p=new THREE.Mesh(new THREE.BoxGeometry(0.035,0.08,0.03),mPin);p.position.set(-0.24+i*0.068,s*0.31,0.05);g.add(p);}}
+    const hdr=new THREE.Mesh(new THREE.BoxGeometry(0.1,h*0.7,0.12),new THREE.MeshStandardMaterial({color:0x1a1a1f}));hdr.position.set(-w/2+0.12,0,0.08);g.add(hdr);
+    return g;};
+  R.mcu=board(V(4.0,1.05,1.0),1.9,1.25,0x0f5a3a,'MCU','#e7eefc');
+  R.mcuLedMat=new THREE.MeshStandardMaterial({color:0x103020,emissive:0x3dff8f,emissiveIntensity:0});
+  const led=new THREE.Mesh(new THREE.SphereGeometry(0.05,12,12),R.mcuLedMat); led.position.set(0.7,0.45,0.06); R.mcu.add(led);
+  R.mcuGlow=glowSprite(0x3dff8f,0.7); R.mcuGlow.position.set(0,0,0.15); R.mcu.add(R.mcuGlow);
+  R.drv=board(V(4.0,-0.85,1.0),1.9,1.25,0x13305e,'SÜRÜCÜ','#ffd18a');
+  const mAl=new THREE.MeshStandardMaterial({color:0xaeb8c4,metalness:.8,roughness:.35});
+  for(let i=0;i<7;i++){const f=new THREE.Mesh(new THREE.BoxGeometry(0.035,0.5,0.28),mAl);f.position.set(0.45+i*0.06,0,0.18);R.drv.add(f);}
+  for(let i=0;i<3;i++){const t=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.16,0.16),new THREE.MeshStandardMaterial({color:0x2266cc}));t.position.set(-0.78,-0.35+i*0.2,0.1);R.drv.add(t);}
+  R.drvGlow=glowSprite(0xffb547,0.8); R.drvGlow.position.set(0,0,0.15); R.drv.add(R.drvGlow);
+  const psu=new THREE.Group(); psu.position.set(6.15,-0.85,0.85); scene.add(psu); R.psu=psu;
+  const pb=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.75,0.6),new THREE.MeshStandardMaterial({color:0x22293a,metalness:.4,roughness:.5}));pb.castShadow=true;psu.add(pb);
+  const pl=new THREE.Mesh(new THREE.PlaneGeometry(0.8,0.3),new THREE.MeshBasicMaterial({map:textTex('12 V DC',{w:256,h:96,font:'700 58px "JetBrains Mono",monospace',color:'#ffb547'}),transparent:true}));pl.position.z=0.302;psu.add(pl);
+
+  // kablolar
+  const wire=(pts,color,r=0.024)=>{const c=new THREE.CatmullRomCurve3(pts);const m=new THREE.MeshStandardMaterial({color,roughness:.5,metalness:.1,transparent:true,opacity:0});
+    const mesh=new THREE.Mesh(new THREE.TubeGeometry(c,80,r,8,false),m);scene.add(mesh);return {c,m,mesh};};
+  const top=0.98+0.70; // braket üstü (sensör grubu y=0.98)
+  R.wVcc=wire([V(-0.09,top,2.75),V(-0.1,2.05,2.7),V(1.4,2.55,2.25),V(2.7,1.65,1.2),V(3.08,1.32,1.05)],0xd8343c);
+  R.wGnd=wire([V(0,top,2.72),V(0,2.12,2.62),V(1.5,2.45,2.12),V(2.75,1.5,1.15),V(3.08,1.2,1.05)],0x2a2d33);
+  R.wOut=wire([V(0.09,top,2.78),V(0.1,2.2,2.8),V(1.6,2.35,2.3),V(2.8,1.38,1.2),V(3.08,1.08,1.05)],0xf1c232);
+  R.wPwm=wire([V(4.05,0.42,1.07),V(4.3,0.1,1.3),V(4.05,-0.22,1.07)],0x4fd1ff,0.02);
+  R.wM1=wire([V(3.05,-0.75,1.05),V(2.4,-1.35,0.6),V(1.8,-0.4,-0.9),V(1.0,2.4,-0.9),V(0.2,2.0,-0.55)],0xd8343c,0.032);
+  R.wM2=wire([V(3.05,-0.95,1.05),V(2.5,-1.55,0.5),V(1.95,-0.5,-1.05),V(1.1,2.5,-1.0),V(-0.15,2.0,-0.65)],0x2a2d33,0.032);
+  R.wPs=wire([V(5.65,-0.85,0.95),V(5.3,-1.05,1.1),V(4.96,-0.85,1.05)],0xd8343c,0.03);
+  R.sigWires=[R.wVcc,R.wGnd,R.wOut]; R.sysWires=[R.wPwm,R.wM1,R.wM2,R.wPs];
+}
+
+/* ---------- Büyütülmüş kesit: Hall elemanı laboratuvarı ---------- */
+function buildLab(){
+  const g=new THREE.Group(); g.position.copy(LAB); scene.add(g); R.lab=g; g.visible=false;
+  const stage=new THREE.Mesh(new THREE.CylinderGeometry(6.5,6.8,0.3,64),new THREE.MeshStandardMaterial({color:0xd3dbe6,roughness:.85,metalness:.1}));stage.position.y=-3.2;g.add(stage);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(6.6,0.02,6,96),new THREE.MeshBasicMaterial({color:0x7d97b8}));ring.rotation.x=Math.PI/2;ring.position.y=-3.04;g.add(ring);
+  // yarı iletken plaka (x: akım yönü, z: Hall gerilimi yönü, y: B yönü)
+  const plateM=new THREE.MeshStandardMaterial({color:0x7d93b5,metalness:.2,roughness:.35,transparent:true,opacity:.3,depthWrite:false});
+  const plate=new THREE.Mesh(new THREE.BoxGeometry(6,0.22,2.8),plateM); g.add(plate);
+  const edges=new THREE.LineSegments(new THREE.EdgesGeometry(plate.geometry),new THREE.LineBasicMaterial({color:0x0b7fc0,transparent:true,opacity:.9})); g.add(edges);
+  const mGold=new THREE.MeshStandardMaterial({color:0xd9b45a,metalness:1,roughness:.3});
+  for(const s of [-1,1]){const c=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.3,2.6),mGold);c.position.x=s*3.06;g.add(c);
+    const h=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.3,0.14),mGold);h.position.z=s*1.45;g.add(h);}
+  // akım kaynağı kabloları
+  const lineM=new THREE.LineBasicMaterial({color:0x5b6b82});
+  const mkLine=pts=>{const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),lineM);g.add(l);};
+  mkLine([V(-3.15,0,0),V(-3.9,0,0),V(-3.9,0,3.2),V(-0.6,0,3.2)]); mkLine([V(3.15,0,0),V(3.9,0,0),V(3.9,0,3.2),V(0.6,0,3.2)]);
+  const src=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,0.25,32),new THREE.MeshStandardMaterial({color:0x22293a,metalness:.4,roughness:.5}));src.position.set(0,0,3.2);g.add(src);
+  // V_H ölçüm kabloları
+  const vhM=new THREE.LineBasicMaterial({color:0xb48cff});
+  const vl=pts=>{const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),vhM);g.add(l);};
+  vl([V(0,0.15,1.52),V(0,1.6,1.9),V(1.6,2.2,1.9)]); vl([V(0,0.15,-1.52),V(0,1.9,-1.6),V(1.6,2.2,1.6)]);
+  const meter=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.5,0.7),new THREE.MeshStandardMaterial({color:0x2a2346,metalness:.3,roughness:.5}));meter.position.set(1.75,2.2,1.75);g.add(meter);R.meter=meter;
+  // akım yönü oku
+  const iArrow=new THREE.ArrowHelper(V(1,0,0),V(-2,0.02,2.35),4,0xffb547,0.4,0.25); g.add(iArrow);
+  // elektronlar
+  const NE=170; R.eN=NE; R.eData=[];
+  const em=new THREE.MeshStandardMaterial({color:0xf59e0b,emissive:0xb45309,emissiveIntensity:.45,roughness:.4});
+  R.eMesh=new THREE.InstancedMesh(new THREE.SphereGeometry(0.05,10,10),em,NE); g.add(R.eMesh);
+  for(let i=0;i<NE;i++) R.eData.push({x:lerp(-3,3,Math.random()),z:lerp(-1.25,1.25,Math.random())});
+  R.eDummy=new THREE.Object3D();
+  R.tracer=glowSprite(0xffe08a,0.5); R.tracer.material.opacity=0.9; g.add(R.tracer);
+  // kenar yükleri
+  const sgn=(t,col)=>canvasTex((c,w,h)=>{c.fillStyle=col;c.font='700 110px "Space Grotesk",sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText(t,w/2,h/2+6);},128,128);
+  const tMinus=sgn('−','#5ea2ff'), tPlus=sgn('+','#ff6670'); R.neg=[];R.pos=[];
+  for(let i=0;i<13;i++){const x=lerp(-2.7,2.7,i/12);
+    const a=new THREE.Sprite(new THREE.SpriteMaterial({map:tMinus,transparent:true,opacity:0,depthWrite:false}));a.scale.setScalar(0.34);a.position.set(x,0.22,-1.22);g.add(a);R.neg.push(a);
+    const b=new THREE.Sprite(new THREE.SpriteMaterial({map:tPlus,transparent:true,opacity:0,depthWrite:false}));b.scale.setScalar(0.34);b.position.set(x,0.22,1.22);g.add(b);R.pos.push(b);}
+  // B okları (aşağı: S kutbuna doğru)
+  R.bArrows=[];
+  for(let i=0;i<4;i++)for(let j=0;j<3;j++){const a=new THREE.ArrowHelper(V(0,-1,0),V(-2.2+i*1.45,1.7,-0.9+j*0.9),1.35,0x4f8cff,0.25,0.15);
+    a.line.material.transparent=true;a.cone.material.transparent=true;g.add(a);R.bArrows.push(a);}
+  // kuvvet okları: manyetik (F_B) ve Hall elektrik alanı (F_E)
+  R.fB=new THREE.ArrowHelper(V(0,0,-1),V(0,0.05,0),1,0xff8c3a,0.2,0.14); R.fE=new THREE.ArrowHelper(V(0,0,1),V(0,0.05,0),1,0xb48cff,0.2,0.14);
+  for(const a of [R.fB,R.fE]){a.line.material.transparent=true;a.cone.material.transparent=true;g.add(a);}
+  // test mıknatısı (üst yüz S)
+  const tm=new THREE.Group(); g.add(tm); R.testMag=tm;
+  const ts=new THREE.Mesh(new THREE.BoxGeometry(1.7,0.45,1.7),new THREE.MeshStandardMaterial({color:0x2f6fe0,roughness:.4,metalness:.2}));ts.position.y=0.225;tm.add(ts);
+  const tn=new THREE.Mesh(new THREE.BoxGeometry(1.7,0.45,1.7),new THREE.MeshStandardMaterial({color:0xe0393e,roughness:.4,metalness:.2}));tn.position.y=-0.225;tm.add(tn);
+  const tl=new THREE.Mesh(new THREE.PlaneGeometry(0.5,0.5),new THREE.MeshBasicMaterial({map:textTex('S',{w:128,h:128,font:'700 100px "Space Grotesk",sans-serif'}),transparent:true}));
+  tl.rotation.x=-Math.PI/2; tl.position.y=0.452; tm.add(tl);
+  R.charge=0;
+}
+
+/* ---------- Işıklı sinyal darbeleri ---------- */
+const pulses=[];
+function buildPulses(){ for(let i=0;i<70;i++){const s=glowSprite(0xffffff,0.3);s.visible=false;scene.add(s);pulses.push({s,on:false});} }
+function spawnPulse(curve,dur,color,scale,op,done){const p=pulses.find(q=>!q.on);if(!p)return;
+  Object.assign(p,{on:true,curve,u:0,dur,done,op});p.s.visible=true;p.s.material.color.set(color);p.s.material.opacity=op;p.s.scale.setScalar(scale);p.s.position.copy(curve.getPointAt(0));}
+function updatePulses(dt){for(const p of pulses){if(!p.on)continue;p.u+=dt/p.dur;
+  if(p.u>=1){p.on=false;p.s.visible=false;if(p.done)p.done();continue;}
+  p.s.position.copy(p.curve.getPointAt(p.u));p.s.material.opacity=p.op*(sigOn?1:0);}}
+
+/* ---------- 3D bağlantılı HTML etiketleri ---------- */
+const LBL={};
+function label(key,html,anchor,cls=''){const el=document.createElement('div');el.className='lbl '+cls;el.innerHTML='<i></i><span>'+html+'</span>';$('#labels').appendChild(el);LBL[key]={el,anchor,on:false};}
+function buildLabels(){
+  label('housing','Motor gövdesi<span class="sub">metal dış kabuk (stator yatağı)</span>',V(-1.25,1.25,0.8),'l');
+  label('statorMag','Stator mıknatısı<span class="sub">sabit, dönmez</span>',V(1.2,-0.35,1.2));
+  label('rotorL','Rotor (armatür)<span class="sub">döner</span>',V(-0.5,0.75,1.1),'l');
+  label('winding','Bakır sargılar',V(0.62,-0.55,1.32),'d');
+  label('comm','Komütatör + fırçalar',V(0,0.4,-1.55));
+  label('shaftL','Dönme mili',V(0,0.17,3.4));
+  label('magnetL','Algılama mıknatısı<span class="sub">mile sabit, milde döner</span>',V(-0.55,-0.5,2.9),'l d');
+  label('magN','N (kuzey)',()=>R.letterN.getWorldPosition(tmpV),'r');
+  label('magS','S (güney)',()=>R.letterS.getWorldPosition(tmpV2),'b');
+  label('sensorPt','Sensör konumu (sabit nokta)',V(0,0.98,2.82),'g');
+  label('sensorL','Hall Effect sensörü',V(0.14,0.98,2.82),'g d');
+  label('vcc','VCC · besleme',()=>R.legs[0].localToWorld(tmpV.set(0,-0.05,0)),'pin l');
+  label('gnd','GND · toprak',()=>R.legs[1].localToWorld(tmpV.set(0,0.12,0)),'pin');
+  label('out','OUT · sinyal çıkışı',()=>R.legs[2].localToWorld(tmpV.set(0,-0.12,0)),'pin d');
+  label('fixedSensor','Sabit Hall sensörü<span class="sub">gövdeye bağlı, dönmez</span>',V(0.14,1.0,2.82),'g');
+  label('rotMagnet','Dönen mıknatıs',V(-0.6,-0.45,2.9),'l d');
+  label('outWire','OUT sinyali → MCU',()=>R.wOut.c.getPointAt(0.55),'a');
+  label('mcu','Mikrodenetleyici (MCU)<span class="sub">kenar sayar · RPM hesaplar · PWM üretir</span>',V(4.0,1.68,1.05));
+  label('driver','Motor sürücüsü (H-köprüsü)<span class="sub">PWM’e göre 12 V’u anahtarlar</span>',V(4.0,-1.48,1.05),'d');
+  label('psu','12 V DC besleme',V(6.15,-0.47,0.9));
+  label('pwmWire','PWM',V(4.3,0.1,1.3),'a');
+  label('power','Motor gerilimi',()=>R.wM1.c.getPointAt(0.45),'a l');
+  label('feedback','Geri besleme yolu<span class="sub">mil → mıknatıs → sensör → MCU</span>',V(-0.2,1.35,3.15),'g l');
+  // laboratuvar
+  const L=(x,y,z)=>V(x,y,z).add(LAB);
+  label('plate','Yarı iletken Hall elemanı<span class="sub">büyütülmüş kesit (ölçeksiz)</span>',L(-2.9,0.12,-1.4),'l');
+  label('current','Akım I',L(2.0,0.05,2.35),'a d');
+  label('electrons','Elektronlar (e⁻)<span class="sub">akıma ters yönde hareket eder</span>',L(-2.4,0.05,0.4),'d');
+  label('bfield','Manyetik alan B<span class="sub">plakaya dik</span>',L(-2.2,1.8,0.0),'b l');
+  label('force','<b style="color:#ff8c3a">F_B = q·(v × B)</b> Lorentz kuvveti<span class="sub" style="color:#b48cff">F_E = q·E_H (biriken yüklerin alanı)</span>',()=>R.tracer.getWorldPosition(tmpV),'a');
+  label('neg','− yük birikimi',L(1.5,0.25,-1.3),'b d');
+  label('pos','+ yük birikimi (elektron eksikliği)',L(-1.4,0.25,1.3),'r');
+  label('vh','Hall gerilimi V_H<span class="sub" id="vhTxt">V_H ∝ I·B / (n·q·t)</span><span class="vhbar"><b id="vhBar"></b></span>',L(2.15,2.2,1.75),'');
+  label('testMag','Mıknatıs (S yüzü yukarı)',()=>R.testMag.localToWorld(tmpV.set(0.85,0,0.85)),'b');
+}
+const tmpV=new THREE.Vector3(), tmpV2=new THREE.Vector3(), projV=new THREE.Vector3();
+function updateLabels(active){
+  const W=VW(),H=VH();
+  for(const k in LBL){const L=LBL[k];
+    if(!active.has(k)){if(L.on){L.el.classList.remove('on');L.on=false;}continue;}
+    const a=typeof L.anchor==='function'?L.anchor():L.anchor; projV.copy(a).project(camera);
+    if(projV.z>1||projV.z<-1){if(L.on){L.el.classList.remove('on');L.on=false;}continue;}
+    L.el.style.transform=`translate(${((projV.x*.5+.5)*W).toFixed(1)}px,${((-projV.y*.5+.5)*H).toFixed(1)}px)`;
+    if(!L.on){L.el.classList.add('on');L.on=true;}
+  }
+}
+
+/* =========================================================
+   3) SAHNELER (her biri ayrı modül)
+   ========================================================= */
+function orbit(tgt,r,psi,h){return {pos:V(tgt.x+r*Math.sin(psi),tgt.y+h,tgt.z+r*Math.cos(psi)),tgt};}
+let userOverride=false;
+function scripted(fn){ if(!userOverride) fn(); }
+const SCENES=[
+ { name:'Motor', title:'Elektrik motorunun tanıtımı', dur:12,
+   enter(){ scripted(()=>{S.mode='manual';}); },
+   script(t){ scripted(()=>{S.mode='manual';S.rpmCmd=20*smooth(1.0,4.0,t);}); },
+   params:t=>({housing:lerp(1,0.16,smooth(4.6,6.6,t)),magnet:0,sensor:0,field:0,mcu:0,sys:0,sig:0,shift:0,lights:smooth(0.1,2.6,t)}),
+   cam(t){const tgt=V(0,0,0.3).lerp(V(0,0.25,1.6),smooth(8.6,11.6,t));
+     const psi=lerp(-2.094,1.047,smooth(2.0,8.6,t));
+     const r=lerp(20,9.2,smooth(0,3.2,t))-3.9*smooth(8.6,11.6,t);
+     return orbit(tgt,r,psi,lerp(3.2,1.7,smooth(0,8,t))-0.5*smooth(8.6,11.6,t));},
+   caps:[[4.6,'Elektrik motorları, elektrik enerjisini dönme hareketine dönüştürür.'],[8.2,'Peki motorun ne kadar hızlı döndüğünü nasıl ölçebiliriz?']],
+   labels:t=>t>6.2&&t<10.5?['housing','statorMag','rotorL','winding','shaftL']:[],
+   panel:()=>[], note:()=>null },
+ { name:'Manyetik alan', title:'Mıknatıs ve manyetik alan', dur:12,
+   enter(){}, script(t){ scripted(()=>{S.mode='manual';S.rpmCmd=12;}); },
+   params:t=>({housing:0.1,magnet:1,sensor:t>6.8?1:0,field:1,grow:smooth(1.0,4.2,t),mcu:0,sys:0,sig:0,shift:t>6.8?0.16:0,lights:1}),
+   cam(t){const tgt=V(0,0.25,2.75);return orbit(tgt,lerp(6.4,5.0,smooth(0,6,t)),lerp(0.95,-0.75,smooth(0,12,t)),lerp(1.9,0.7,smooth(0,12,t)));},
+   caps:[[1.2,'Mıknatıs, çevresinde bir manyetik alan oluşturur.'],[6.8,'Mıknatıs döndükçe sensörün bulunduğu noktadaki manyetik alan değişir.']],
+   labels:t=>{const a=['magN','magS'];if(t<6.5)a.push('magnetL');if(t>6.8)a.push('sensorPt');return a;},
+   panel:t=>t>6.8?['secB']:[],
+   note:()=>'<b>Önemli:</b> Manyetik alan görünmez bir fiziksel büyüklüktür. Renkli çizgiler ve üzerlerinde ilerleyen noktalar yalnızca alanın <b>yönünü</b> anlatan eğitim amaçlı görselleştirmedir; elektromanyetik dalga değildir. Çizgiler mıknatısın dışında N’den çıkıp S’ye girer.',
+   bWin:6 },
+ { name:'Hall etkisi', title:'Hall Effect sensörünün çalışma prensibi', dur:44, ts:1.5,
+   // Zaman çizelgesi (s): 0–6 sensöre yaklaşma · 6 kesite geçiş · 6–13 alan yok · 13–16 mıknatıs yaklaşır
+   // 16–26 sapma, yük birikimi, Hall gerilimi, denge · 28–44 dijital eşik ve çıkış
+   enter(){ S.labB=0; S.labMagX=-7; R.charge=0; },
+   script(t){ scripted(()=>{S.mode='manual';S.rpmCmd=12;});
+     S.useLab=t>6.0;
+     let B=0; if(t>13) B=70*smooth(13,16,t);
+     if(t>28) B=40+30*Math.cos(TAU*0.2*(t-28));
+     S.labB=B; S.labTau=t>27?0.3:2.2; S.labMagX=lerp(-7,0,smooth(13,16,t)); },
+   params:t=>({housing:0.28,magnet:1,sensor:1,field:t<6?0.3:0,mcu:0,sys:0,sig:0,shift:t>28?0.17:0,lights:1,lab:t>6.0}),
+   cam(t){ if(t<6){const tgt=V(0,1.12,2.75);const a=smooth(0,4.5,t);
+       return {pos:V(lerp(2.4,0.62,a),lerp(2.0,1.32,a),lerp(5.2,3.55,a)),tgt};}
+     const tgt=LAB.clone().add(V(0,0.1,0)); return orbit(tgt,lerp(12.0,10.4,smooth(6,44,t)),lerp(0.6,0.2,smooth(6,44,t)),lerp(6.6,5.4,smooth(6,44,t)));},
+   flash:t=>Math.max(smooth(5.4,6.0,t)*(1-smooth(6.0,6.7,t)),0),
+   caps:[[0.4,'Rotorun yanında sabit duran küçük siyah parça: Hall Effect sensörü.'],
+     [3.0,'Sensörün üç bağlantısı vardır: VCC (besleme), GND (toprak) ve OUT (sinyal çıkışı).'],
+     [7.0,'Büyütülmüş kesit: Sensörün içinde akım taşıyan yarı iletken bir Hall elemanı vardır.'],
+     [10.0,'Henüz manyetik alan yok: Elektronlar plakanın içinden düz bir çizgide ilerler.'],
+     [13.2,'Bir mıknatıs yaklaşıyor: Plakaya dik yönde bir manyetik alan (B) oluşur.'],
+     [16.5,'Manyetik alan, hareketli elektrik yüklerini saptırır (Lorentz kuvveti).'],
+     [19.5,'Elektronlar bir kenarda birikir; karşı kenar pozitif kalır. İki kenar arasında yük ayrışması oluşur.'],
+     [23.0,'Bu etki, Hall gerilimi adı verilen elektriksel bir gerilim oluşturur.'],
+     [26.0,'Biriken yüklerin elektrik alanı manyetik kuvveti dengeler; elektronlar yeniden düz ilerler, V_H sabitlenir.'],
+     [29.5,'Dijital Hall sensörü: Alan açma eşiğini (B_OP) geçince çıkış 1 olur.'],
+     [35.0,'Alan bırakma eşiğinin (B_RP) altına inince çıkış yeniden 0 olur. Sağdaki grafikleri izleyin.'],
+     [40.0,'Gerçek sensörlerde çıkış polaritesi ve algılama davranışı kullanılan modele bağlıdır.']],
+   labels:t=>{if(t<6)return t>3.0?['vcc','gnd','out','sensorL']:['sensorL'];
+     const a=['plate','current','electrons'];if(t>13)a.push('bfield','testMag');if(t>16.5)a.push('force');if(t>19.5)a.push('neg','pos');if(t>23)a.push('vh');return a;},
+   panel:t=>t>28?['secChain','secB','secO']:[],
+   note:t=>t<6?null:t<26?'<b>Kesit görünümü (ölçeksiz):</b> n-tipi yarı iletkende yük taşıyıcılar elektronlardır. Elektronlar akımın (I) tersi yönde hareket eder.':'<b>Denge:</b> Biriken yüklerin elektrik alanı (F_E) manyetik kuvveti (F_B) dengeler. Gerçekte bu denge nanosaniyeler içinde kurulur; burada okunabilsin diye yavaşlatıldı.',
+   bWin:8, oWin:8 },
+ { name:'Sinyal', title:'Rotor dönerken sensörün sinyal üretmesi', dur:12,
+   enter(){}, script(t){ scripted(()=>{S.mode='manual';S.rpmCmd=t<5?30:lerp(30,180,smooth(5,11,t));}); },
+   params:t=>({housing:0.35,magnet:1,sensor:1,field:0.5,mcu:1,sys:0,sig:1,shift:0.12,lights:1}),
+   cam(t){const tgt=V(2.0,0.75,1.9);const a=smooth(0,12,t);return {pos:V(lerp(4.6,3.6,a),lerp(3.0,2.4,a),lerp(10.2,8.8,a)),tgt};},
+   caps:[[0.8,'Rotor döndükçe Hall sensörü elektriksel sinyal üretir.'],[6.0,'Dönüş hızı arttıkça sinyallerin frekansı artar.']],
+   labels:()=>['fixedSensor','rotMagnet','outWire','mcu'],
+   panel:()=>['secB','secO'],
+   note:()=>'<b>Sensör sabittir</b>, rotorla birlikte dönmez. Geometri: her tam devirde S kutbu sensörün önünden bir kez geçer → devir başına <b>1 yükselen kenar</b>.',
+   bWin:4, oWin:4 },
+ { name:'RPM', title:'Motor hızının RPM olarak hesaplanması', dur:15,
+   enter(){ S.gateStart=S.t; S.gateCount=0; S.gateLast=null; },
+   script(t){ scripted(()=>{S.mode='manual';S.rpmCmd=t<5?600:t<10?900:1200;}); },
+   params:t=>({housing:0.35,magnet:1,sensor:1,field:0.32,mcu:1,sys:0,sig:1,shift:0.13,lights:1}),
+   cam(t){const tgt=V(2.1,0.5,1.5);const a=smooth(0,15,t);return {pos:V(lerp(3.4,2.6,a),lerp(2.8,2.3,a),lerp(10.6,9.6,a)),tgt};},
+   caps:[[0.6,'Hall sensöründen gelen sinyaller sayılarak motorun dönüş hızı hesaplanır.'],[5.0,'Motor hızlandı: 1 saniyede sayılan yükselen kenar sayısı arttı.'],[10.0,'Daha yüksek hız → daha sık darbe → daha büyük RPM.']],
+   labels:()=>['fixedSensor','outWire','mcu'],
+   panel:()=>['secO','secCalc'],
+   note:()=>'Yüksek hızda görüntü kare hızı dönüşü yakalayamaz; yanıltıcı “geri dönme” etkisini önlemek için <b>hareket bulanıklığı</b> uygulanır. Ayrıntı için animasyon hızını düşürün: tüm grafikler aynı simülasyon zamanına bağlıdır.',
+   oWin:2.2, gate:true },
+ { name:'PWM kontrol', title:'Motor hızının PWM ile kontrol edilmesi', dur:16,
+   enter(){ scripted(()=>{S.mode='closed';S.integ=S.duty;S.target=600;}); },
+   script(t){ scripted(()=>{S.mode='closed';S.target=t<7?600:1200;}); },
+   params:t=>({housing:0.5,magnet:1,sensor:1,field:0.25,mcu:1,sys:1,sig:1,shift:0.1,lights:1}),
+   cam(t){const tgt=V(2.6,0.15,0.6);const a=smooth(0,16,t);return {pos:V(lerp(4.4,3.4,a),lerp(3.8,3.0,a),lerp(14.6,13.2,a)),tgt};},
+   caps:[[0.6,'PWM, motorun hızını ayarlamak için kullanılır.'],[3.6,'Hall sensörü motorun gerçek hızını ölçer ve kontrol sistemine geri bildirim sağlar.'],[7.0,'Hedef hız 1200 RPM yapıldı. Ölçülen hız hedefin altında → PWM görev oranı artırılır.'],[12.4,'Ölçülen hız hedefe yaklaştı: PWM görev oranı dengelendi.']],
+   labels:()=>['fixedSensor','mcu','driver','psu','pwmWire','power','feedback'],
+   panel:()=>['secCtrl','secPWM'],
+   note:()=>null },
+ { name:'Tüm sistem', title:'Tüm sistemin birlikte çalışması', dur:16,
+   enter(){ scripted(()=>{S.mode='closed';S.integ=S.duty;S.target=1200;}); },
+   script(t){ scripted(()=>{S.mode='closed';S.target=1200;}); },
+   params:t=>({housing:0.3,magnet:1,sensor:1,field:0.7,mcu:1,sys:1,sig:1,shift:0.1,lights:1}),
+   cam(t){const tgt=V(2.6,0.2,0.6);return orbit(tgt,lerp(14.2,15.4,smooth(0,16,t)),lerp(-0.12,0.42,smooth(0,16,t)),lerp(3.2,4.2,smooth(0,16,t)));},
+   caps:[[0.6,'Ölç → hesapla → karşılaştır → PWM ile ayarla → tekrar ölç: sürekli tekrar eden geri besleme döngüsü.']],
+   capEnd:6.4,
+   labels:t=>t<6.4?['fixedSensor','mcu','driver','feedback']:[],
+   panel:()=>['secCtrl','secO','secPWM'],
+   note:()=>null, oWin:1, finale:6.6 }
+];
+
+/* =========================================================
+   4) DURUM, ARAYÜZ, DÖNGÜ
+   ========================================================= */
+let SC=0, sceneT=0, playing=true, speed=1, fieldOn=true, sigOn=true, userCam=false;
+let blendFromPos=V(0,2,20), blendFromTgt=V(0,0,0), blendK=1, flashReal=0;
+const curTgt=V(0,0,0);
+let capCur=null, capTO=0, pwmTimer=0, powTimer=0, mcuFlash=0;
+
+const steps=$('#steps');
+SCENES.forEach((s,i)=>{const b=document.createElement('button');b.innerHTML=`<b>${i+1}</b>${s.name}<span class="pr"></span>`;b.title=s.title;b.addEventListener('click',()=>goScene(i));steps.appendChild(b);});
+const stepBtns=[...steps.children];
+
+function goScene(i){
+  SC=(i+SCENES.length)%SCENES.length; sceneT=0; userOverride=false; userCam=false;
+  S.useLab=false; const s=SCENES[SC]; s.enter&&s.enter();
+  blendFromPos.copy(camera.position); blendFromTgt.copy(curTgt); blendK=0;
+  if(camera.position.distanceTo(s.cam(0).pos)>28){ blendK=1; flashReal=1; }
+  stepBtns.forEach((b,k)=>b.classList.toggle('cur',k===SC));
+  stepBtns[SC].scrollIntoView({block:'nearest',inline:'nearest'});
+  capCur=null; setCaption('');
+  if(userOverride===false) $('#hMode').textContent=S.mode==='closed'?'Kapalı çevrim (senaryo)':'Senaryo hızı';
+}
+function setCaption(txt){ if(txt===capCur) return; capCur=txt; const el=$('#caption'); el.classList.remove('show'); clearTimeout(capTO);
+  capTO=setTimeout(()=>{el.textContent=txt||''; if(txt) el.classList.add('show');},txt?280:0); }
+
+// kontroller
+$('#bPlay').addEventListener('click',togglePlay);
+function togglePlay(){playing=!playing;$('#bPlay').textContent=playing?'❚❚ Duraklat':'▶ Başlat';}
+$('#bPrev').addEventListener('click',()=>goScene(SC-1));
+$('#bNext').addEventListener('click',()=>goScene(SC+1));
+$('#rSpeed').addEventListener('input',e=>{speed=+e.target.value;$('#oSpeed').textContent=speed.toFixed(2)+'×';});
+$('#tField').addEventListener('change',e=>{fieldOn=e.target.checked;});
+$('#tSig').addEventListener('change',e=>{sigOn=e.target.checked;});
+$('#bCam').addEventListener('click',()=>{userCam=false;blendFromPos.copy(camera.position);blendFromTgt.copy(curTgt);blendK=0;});
+addEventListener('keydown',e=>{if(e.target.tagName==='INPUT'||!appVisible||APPEL.getBoundingClientRect().top<-80)return;
+  if(e.code==='Space'){e.preventDefault();togglePlay();} else if(e.code==='ArrowRight')goScene(SC+1); else if(e.code==='ArrowLeft')goScene(SC-1);});
+
+function onResize(){renderer.setSize(VW(),VH());camera.aspect=VW()/VH();camera.fov=VW()<820?50:38;camera.updateProjectionMatrix();
+  document.documentElement.style.setProperty('--fh',$('#foot').offsetHeight+'px');}
+
+/* ---------- grafikler ---------- */
+function prep(cv){const r=cv.getBoundingClientRect();const w=Math.max(10,r.width|0),h=Math.max(10,r.height|0),d=Math.min(2,devicePixelRatio||1);
+  if(cv.width!==w*d||cv.height!==h*d){cv.width=w*d;cv.height=h*d;}const c=cv.getContext('2d');c.setTransform(d,0,0,d,0,0);c.clearRect(0,0,w,h);return {c,w,h};}
+const CS={grid:'#dbe3ee',axis:'#8b98ae',txt:'#53627c',c:'#0b7fc0',g:'#12994a',a:'#c27400',v:'#7a4ee0'};
+function frameAxes(c,w,h,t0,t1,L,T,pw,ph){
+  const win=t1-t0, st=win<=1.3?0.2:win<=3?0.5:1; c.font='10px "JetBrains Mono",monospace'; c.fillStyle=CS.txt; c.textAlign='center';
+  c.strokeStyle=CS.grid; c.lineWidth=1;
+  for(let x=Math.ceil(t0/st)*st;x<=t1+1e-9;x+=st){const px=L+(x-t0)/win*pw;c.beginPath();c.moveTo(px,T);c.lineTo(px,T+ph);c.stroke();c.fillText(x.toFixed(st<1?1:0),px,T+ph+12);}
+  c.textAlign='right'; c.fillText('Zaman (s)',L+pw,T+ph+22>h?T+ph+12:T+ph+22);
+}
+function drawB(cv,win){
+  const {c,w,h}=prep(cv),L=36,Rm=6,T=6,Bm=18,pw=w-L-Rm,ph=h-T-Bm,t1=S.t,t0=t1-win;
+  const X=t=>L+(t-t0)/win*pw, Y=b=>T+ph/2-b/80*ph/2;
+  frameAxes(c,w,h,t0,t1,L,T,pw,ph);
+  c.fillStyle=CS.txt;c.textAlign='right';c.font='10px "JetBrains Mono",monospace';
+  for(const b of [-60,0,60]){c.fillText(b,L-5,Y(b)+3);} c.strokeStyle=CS.axis;c.beginPath();c.moveTo(L,Y(0));c.lineTo(L+pw,Y(0));c.stroke();
+  c.setLineDash([4,3]);c.strokeStyle=CS.g;c.beginPath();c.moveTo(L,Y(HALL.BOP));c.lineTo(L+pw,Y(HALL.BOP));c.stroke();
+  c.strokeStyle=CS.a;c.beginPath();c.moveTo(L,Y(HALL.BRP));c.lineTo(L+pw,Y(HALL.BRP));c.stroke();c.setLineDash([]);
+  c.strokeStyle=CS.c;c.lineWidth=1.8;c.beginPath();let f=true;hEach(t0,(t,b)=>{const x=X(t),y=Y(b);if(f){c.moveTo(x,y);f=false;}else c.lineTo(x,y);});c.stroke();
+  c.save();c.translate(10,T+ph/2);c.rotate(-Math.PI/2);c.textAlign='center';c.fillStyle=CS.txt;c.fillText('B (mT)',0,0);c.restore();
+}
+function drawO(cv,win,gate){
+  const {c,w,h}=prep(cv),L=36,Rm=6,T=12,Bm=18,pw=w-L-Rm,ph=h-T-Bm,t1=S.t,t0=t1-win;
+  const X=t=>L+(t-t0)/win*pw, Y=o=>T+ph-(o*0.78+0.08)*ph;
+  if(gate){const gs=Math.max(S.gateStart,t0);c.fillStyle='rgba(79,209,255,.11)';c.fillRect(X(gs),T,X(t1)-X(gs),ph);
+    const ps=S.gateStart-1; if(ps+1>t0){c.strokeStyle='rgba(61,255,143,.55)';c.setLineDash([3,3]);c.strokeRect(X(Math.max(ps,t0)),T+0.5,X(ps+1)-X(Math.max(ps,t0)),ph-1);c.setLineDash([]);}
+  }
+  frameAxes(c,w,h,t0,t1,L,T,pw,ph);
+  c.fillStyle=CS.txt;c.textAlign='right';c.font='10px "JetBrains Mono",monospace';c.fillText('1',L-6,Y(1)+3);c.fillText('0',L-6,Y(0)+3);
+  c.strokeStyle=CS.g;c.lineWidth=2;c.shadowColor=CS.g;c.shadowBlur=6;c.beginPath();let f=true,prev=0;
+  hEach(t0,(t,b,o)=>{const x=X(t);if(f){c.moveTo(x,Y(o));f=false;}else if(o!==prev){c.lineTo(x,Y(prev));c.lineTo(x,Y(o));}prev=o;});
+  if(!f)c.lineTo(X(t1),Y(prev));c.stroke();c.shadowBlur=0;
+  // yükselen kenar işaretleri
+  c.fillStyle=CS.g;let n=0;
+  for(let k=0;k<eCount;k++){const te=eT[(eI-1-k+EN)%EN];if(te<t0)break;const x=X(te);c.beginPath();c.moveTo(x,T-1);c.lineTo(x-3.5,T-7);c.lineTo(x+3.5,T-7);c.fill();
+    if(gate&&te>=S.gateStart){n++;}}
+}
+function drawPWM(cv){
+  const {c,w,h}=prep(cv),L=36,Rm=6,T=8,Bm=16,pw=w-L-Rm,ph=h-T-Bm,win=10*PWM_SHOW,t1=S.t,t0=t1-win;
+  const X=t=>L+(t-t0)/win*pw, Y=v=>T+ph-(v/12*0.82+0.06)*ph;
+  c.strokeStyle=CS.grid;c.lineWidth=1;for(const v of [0,6,12]){c.beginPath();c.moveTo(L,Y(v));c.lineTo(L+pw,Y(v));c.stroke();}
+  c.fillStyle=CS.txt;c.textAlign='right';c.font='10px "JetBrains Mono",monospace';c.fillText('12 V',L-4,Y(12)+3);c.fillText('0 V',L-4,Y(0)+3);
+  c.textAlign='center';c.fillText('1 periyot = 50 µs (20 kHz) · gösterim yavaşlatıldı',L+pw/2,h-3);
+  const k0=Math.floor(t0/PWM_SHOW),k1=Math.floor(t1/PWM_SHOW);
+  c.save();c.beginPath();c.rect(L,0,pw,h);c.clip();
+  c.strokeStyle=CS.a;c.lineWidth=2;c.beginPath();c.moveTo(X(k0*PWM_SHOW),Y(0));
+  for(let k=k0;k<=k1;k++){const D=dutyRing[((k%DUTYN)+DUTYN)%DUTYN],a=k*PWM_SHOW,m=a+D*PWM_SHOW,b=(k+1)*PWM_SHOW;
+    c.lineTo(X(a),Y(0));if(D>0.001){c.lineTo(X(a),Y(12));c.lineTo(X(m),Y(12));c.lineTo(X(m),Y(0));}c.lineTo(X(b),Y(0));}
+  c.stroke();
+  c.setLineDash([5,4]);c.strokeStyle=CS.v;c.lineWidth=1.6;c.beginPath();
+  for(let k=k0;k<=k1;k++){const D=dutyRing[((k%DUTYN)+DUTYN)%DUTYN];const y=Y(D*12);if(k===k0)c.moveTo(X(k*PWM_SHOW),y);else c.lineTo(X(k*PWM_SHOW),y);c.lineTo(X((k+1)*PWM_SHOW),y);}
+  c.stroke();c.setLineDash([]);c.restore();
+}
+
+/* ---------- ana döngü ---------- */
+const secs=['secChain','secB','secO','secCalc','secCtrl','secPWM'].map(id=>$('#'+id));
+let last=performance.now(), uiTick=0, lastGateSeq=-1;
+function frame(now){
+  requestAnimationFrame(frame);
+  if(!appVisible){last=now;return;}
+  const dtR=Math.min(0.05,(now-last)/1000); last=now;
+  const sc=SCENES[SC];
+  const dt=playing?dtR*speed:0;
+  if(dt>0){
+    sceneT+=dt;
+    if(sceneT>=sc.dur*(sc.ts||1)){goScene(SC+1);return;}
+    sc.script(sceneT/(sc.ts||1));
+    const n=Math.max(1,Math.round(dt/0.001)), h=dt/n;
+    for(let i=0;i<n;i++) physStep(h);
+  }
+  const t=sceneT/(sc.ts||1), tp=sc.params(t);
+  // görsel parametreleri yumuşakça hedefe taşı (sahneler arası dönüşüm)
+  const k=1-Math.exp(-dtR*2.6);
+  for(const key in P){ if(tp[key]!==undefined) P[key]+=(+tp[key]-P[key])*k; }
+  const grow=tp.grow===undefined?1:tp.grow;
+
+  // rotor
+  R.rotor.rotation.z=S.angle;
+  const wf=playing?S.rpm/60*TAU*speed/60:0; const blur=smooth(0.28,0.75,wf);
+  R.magBlurMat.opacity=0.88*blur; R.rotorBlurMat.opacity=0.72*blur;
+  // gövde saydamlığı
+  for(const m of R.housingMats){m.opacity=P.housing;m.depthWrite=P.housing>0.97;}
+  R.magnet.visible=P.magnet>0.02; R.magnet.scale.setScalar(Math.max(0.001,P.magnet));
+  for(const m of R.magMats) m.opacity=1-0.8*blur;
+  // alan çizgileri
+  const fo=P.field*(fieldOn?1:0)*(1-0.6*blur)*Math.min(1,P.magnet*1.5);
+  R.field.visible=fo>0.01; R.fieldMat.opacity=0.85*fo; R.partMat.opacity=fo;
+  if(R.field.visible){
+    for(const tb of R.tubes) tb.mesh.geometry.setDrawRange(0,Math.floor(grow*tb.TS)*tb.per);
+    const pa=R.points.geometry.attributes.position, ca=R.points.geometry.attributes.color;
+    R.parts.forEach((p,i)=>{const ln=R.lines[p.l]; p.u=(p.u+dt*0.55/ln.len)%1; const uu=Math.min(p.u,grow);
+      const f=uu*120,i0=Math.floor(f),i1=Math.min(120,i0+1),fr=f-i0; const a=ln.sp[i0],b=ln.sp[i1];
+      pa.setXYZ(i,lerp(a.x,b.x,fr),lerp(a.y,b.y,fr),lerp(a.z,b.z,fr)); const cc=R.colAt(uu); ca.setXYZ(i,cc.r*1.3,cc.g*1.3,cc.b*1.3);});
+    pa.needsUpdate=true; ca.needsUpdate=true;
+  }
+  // sensör
+  R.sensor.visible=P.sensor>0.02; R.sensor.scale.setScalar(Math.max(0.001,P.sensor));
+  const lit=S.out&&!S.useLab?1:0;
+  R.sensorMat.emissiveIntensity+=((lit?1.6:0)-R.sensorMat.emissiveIntensity)*(lit?1:0.35);
+  R.sensorGlow.material.opacity=R.sensorMat.emissiveIntensity/1.6*0.95;
+  // elektronik
+  R.mcu.visible=P.mcu>0.02; R.mcu.scale.setScalar(Math.max(0.001,P.mcu));
+  for(const o of [R.drv,R.psu]){o.visible=P.sys>0.02;o.scale.setScalar(Math.max(0.001,P.sys));}
+  for(const w of R.sigWires){w.m.opacity=P.sig;w.mesh.visible=P.sig>0.02;}
+  for(const w of R.sysWires){w.m.opacity=P.sys;w.mesh.visible=P.sys>0.02;}
+  // sinyal darbeleri
+  while(S.pendingEdges>0){S.pendingEdges--; if(P.sig>0.5&&sigOn) spawnPulse(R.wOut.c,0.45,0x3dff8f,0.34,1,()=>{mcuFlash=1;});}
+  if(P.sys>0.5&&dt>0){ pwmTimer+=dt; powTimer+=dt;
+    if(pwmTimer>0.12){pwmTimer=0; if(S.duty>0.01) spawnPulse(R.wPwm.c,0.3,0x4fd1ff,0.28,0.9,null);}
+    if(powTimer>0.09){powTimer=0; if(S.duty>0.01){spawnPulse(R.wM1.c,0.6,0xffb547,0.2+0.25*S.duty,0.35+0.6*S.duty,null);}}}
+  updatePulses(dt);
+  mcuFlash=Math.max(0,mcuFlash-dtR*3.5);
+  R.mcuLedMat.emissiveIntensity=mcuFlash*2.5; R.mcuGlow.material.opacity=mcuFlash*0.8;
+  R.drvGlow.material.opacity=P.sys>0.5?0.15+0.6*S.duty*(0.7+0.3*Math.sin(now*0.03)):0;
+  // laboratuvar
+  R.lab.visible=!!tp.lab;
+  if(R.lab.visible) updateLab(dt);
+
+  // kamera
+  const cm=sc.cam(t);
+  if(!userCam){
+    blendK=Math.min(1,blendK+dtR/1.8); const e=blendK*blendK*(3-2*blendK);
+    camera.position.copy(blendFromPos).lerp(cm.pos,e); curTgt.copy(blendFromTgt).lerp(cm.tgt,e);
+    camera.lookAt(curTgt); controls.target.copy(curTgt);
+  } else { controls.update(); curTgt.copy(controls.target); }
+  const sh=VW()>=820?P.shift:0;
+  if(sh>0.002) camera.setViewOffset(VW(),VH(),VW()*sh,0,VW(),VH()); else camera.clearViewOffset();
+  renderer.toneMappingExposure=0.62+0.4*P.lights;
+
+  // geçiş parlaması
+  flashReal=Math.max(0,flashReal-dtR*1.6);
+  const fl=Math.max(sc.flash?sc.flash(t):0, flashReal>0.5?(1-flashReal)*2:flashReal*2);
+  $('#flash').style.opacity=(reduceMotion?0.3:0.92)*fl;
+
+  // açıklamalar
+  let cap='';for(const [ct,tx] of sc.caps){if(t>=ct)cap=tx;} if(sc.capEnd&&t>=sc.capEnd)cap='';
+  setCaption(cap);
+  const fin=sc.finale&&t>=sc.finale; $('#finale').classList.toggle('on',!!fin);
+  $('#fin1').classList.toggle('on',fin&&t>=sc.finale+0.7);$('#fin2').classList.toggle('on',fin&&t>=sc.finale+1.4);$('#fin3').classList.toggle('on',fin&&t>=sc.finale+2.1);
+
+  updateLabels(new Set(sc.labels(t)));
+  const pv=sc.panel(t).filter(id=>sigOn||id!=='secO');
+  secs.forEach(s=>s.hidden=!pv.includes(s.id));
+  $('#panel').classList.toggle('off',pv.length===0);
+  APPEL.classList.toggle('withpanel',pv.length>0);
+  const nt=sc.note(t); const ne=$('#note'); if(nt){if(ne.dataset.k!==nt){ne.innerHTML=nt;ne.dataset.k=nt;}ne.classList.add('on');}else ne.classList.remove('on');
+  stepBtns[SC].querySelector('.pr').style.width=(t/sc.dur*100).toFixed(1)+'%';
+
+  // grafikler
+  if(pv.includes('secB')) drawB($('#cvB'),sc.bWin||4);
+  if(pv.includes('secO')) drawO($('#cvO'),sc.oWin||2,!!sc.gate);
+  if(pv.includes('secPWM')) drawPWM($('#cvP'));
+  uiTick+=dtR; if(uiTick>0.066){uiTick=0;updateUI(pv);}
+  renderer.render(scene,camera);
+}
+
+function updateLab(dt){
+  const B=S.labB, bn=B/70;
+  R.charge+=(bn-R.charge)*Math.min(1,dt/(S.labTau||2.2));
+  const net=bn-R.charge;
+  const m=R.eDummy;
+  for(let i=0;i<R.eN;i++){const e=R.eData[i];e.x-=1.35*dt;e.z=clamp(e.z-2.3*net*dt*(1+Math.abs(e.x)*0.05),-1.3,1.3);
+    if(e.x<-2.95){e.x=2.95;e.z=lerp(-1.25,1.25,Math.random());}
+    m.position.set(e.x,0,e.z);m.updateMatrix();R.eMesh.setMatrixAt(i,m.matrix);}
+  R.eMesh.instanceMatrix.needsUpdate=true;
+  const tr=R.eData[0]; R.tracer.position.set(tr.x,0,tr.z);
+  const lb=0.25+1.2*bn, le=0.25+1.2*R.charge;
+  R.fB.position.set(tr.x,0.05,tr.z); R.fE.position.set(tr.x,0.05,tr.z);
+  R.fB.setLength(lb,0.2,0.14); R.fE.setLength(le,0.2,0.14);
+  const ob=bn>0.03?1:0, oe=R.charge>0.03?1:0;
+  R.fB.line.material.opacity=R.fB.cone.material.opacity=ob; R.fE.line.material.opacity=R.fE.cone.material.opacity=oe;
+  R.fB.visible=ob>0; R.fE.visible=oe>0;
+  R.neg.forEach(s=>s.material.opacity=clamp(R.charge*1.2,0,1)); R.pos.forEach(s=>s.material.opacity=clamp(R.charge*1.2,0,1));
+  R.bArrows.forEach(a=>{a.line.material.opacity=a.cone.material.opacity=clamp(bn,0,1);a.visible=bn>0.02;});
+  const gapY=-0.75-2.1*(1-clamp(bn,0,1)); R.testMag.position.set(S.labMagX,gapY-0.45,0);
+  const vb=$('#vhBar'); if(vb) vb.style.width=(clamp(R.charge,0,1)*100).toFixed(0)+'%';
+}
+
+function setTxt(el,v){if(el.textContent!==v)el.textContent=v;}
+function updateUI(pv){
+  setTxt($('#hReal'),Math.round(S.rpm)+'');
+  setTxt($('#hMeas'),Math.round(S.measured)+'');
+  setTxt($('#hDuty'),(S.duty*100).toFixed(1)+' %');
+  setTxt($('#hTgt'),S.mode==='closed'?Math.round(S.target)+'':'—');
+  if(!userOverride) setTxt($('#hMode'),S.mode==='closed'?'Kapalı çevrim (PI)':'Senaryo hızı (açık çevrim)');
+  setTxt($('#bVal'),S.B.toFixed(0)+' mT');
+  setTxt($('#oVal'),'OUT = '+S.out);
+  const f=S.rpm/60; setTxt($('#oFreq'),S.useLab?'':'f = '+f.toFixed(2)+' Hz = '+Math.round(S.rpm)+' RPM / 60');
+  // zincir
+  if(pv.includes('secChain')){
+    setTxt($('#chOut'),'OUT = '+S.out);
+    $('#nHall').classList.toggle('hot',S.B>5); $('#nAmp').classList.toggle('hot',S.B>5);
+    $('#nSch').classList.toggle('hot',!!S.out); $('#nOut').classList.toggle('hot',!!S.out);
+    setTxt($('#nVh'),'B = '+S.B.toFixed(0)+' mT · V_H ∝ B');
+    setTxt($('#nSchS'),S.out?'B ≥ B_OP oldu → 1 (B_RP altına inene dek)':'B < B_OP → 0');
+    setTxt($('#nOutS'),S.out?'1 (algılandı)':'0');
+  }
+  // RPM hesabı
+  if(pv.includes('secCalc')){
+    setTxt($('#gNow'),'sayılıyor: '+S.gateCount);
+    $('#gBar').style.width=(clamp(S.t-S.gateStart,0,1)*100).toFixed(0)+'%';
+    if(S.gateLast&&S.gateSeq!==lastGateSeq){lastGateSeq=S.gateSeq;const N=S.gateLast.count,rpm=N*60/PPR;
+      setTxt($('#gN'),N+''); setTxt($('#f2'),`RPM = (${N} × 60) / ${PPR}`); setTxt($('#f3'),`RPM = ${rpm}`); setTxt($('#dRPM'),rpm+'');
+      const fm=$('#formula'); fm.querySelectorAll('div').forEach(d=>d.classList.add('flash')); setTimeout(()=>fm.querySelectorAll('div').forEach(d=>d.classList.remove('flash')),350);}
+    if(!S.gateLast){setTxt($('#gN'),'—');setTxt($('#f2'),'RPM = (— × 60) / 1');setTxt($('#f3'),'RPM = —');setTxt($('#dRPM'),'----');}
+  }
+  // kontrol
+  if(pv.includes('secCtrl')||pv.includes('secPWM')){
+    setTxt($('#cTgt'),Math.round(S.target)+''); setTxt($('#cMeas'),Math.round(S.measured)+'');
+    $('#cDutyB').style.width=(S.duty*100).toFixed(1)+'%'; setTxt($('#cDuty'),'D = '+(S.duty*100).toFixed(1)+' %');
+    setTxt($('#pVal'),'D = '+(S.duty*100).toFixed(1)+' %');
+    setTxt($('#cAvg'),`Motora uygulanan ortalama gerilim ≈ D × 12 V = ${(S.duty*12).toFixed(2)} V`);
+    const e=S.target-S.measured, d=$('#decision');
+    if(S.mode!=='closed'){d.className='eq';setTxt(d,'Açık çevrim: kontrolcü devrede değil');}
+    else if(e>20){d.className='up';setTxt(d,`Ölçülen (${Math.round(S.measured)}) < Hedef (${Math.round(S.target)}) → görev oranı ARTIRILIYOR ▲`);}
+    else if(e<-20){d.className='down';setTxt(d,`Ölçülen (${Math.round(S.measured)}) > Hedef (${Math.round(S.target)}) → görev oranı AZALTILIYOR ▼`);}
+    else {d.className='eq';setTxt(d,`Ölçülen ≈ Hedef → görev oranı DENGEDE ● (hata ${e>=0?'+':''}${Math.round(e)} RPM)`);}
+    const hot=Math.floor((S.t*1.8)%6); [...$('#loop').querySelectorAll('span')].forEach((s,i)=>s.classList.toggle('hot',i===hot));
+  }
+}
+
+/* ---------- başlat ---------- */
+window.hallSim={S,goScene:i=>goScene(i),get scene(){return SC;},get t(){return sceneT;}};
+function start(){
+  initThree();
+  const c0=SCENES[0].cam(0); camera.position.copy(c0.pos); curTgt.copy(c0.tgt); camera.lookAt(curTgt);
+  goScene(0); blendK=1; flashReal=0;
+  $('#loading').classList.add('done');
+  last=performance.now(); requestAnimationFrame(frame);
+}
+if(!window.THREE||!THREE.OrbitControls){$('#loading').textContent='3D kütüphanesi yüklenemedi. İnternet bağlantısını kontrol edip sayfayı yenileyin.';return;}
+Promise.race([document.fonts?document.fonts.ready:Promise.resolve(),new Promise(r=>setTimeout(r,1500))]).then(start);
+})();
+</script>
+<script>
+/* =========================================================
+   BÖLÜM 2 + 3: Breadboard devresi (SVG) ve çalışan devre simülasyonu
+   ========================================================= */
+(function(){
+'use strict';
+const TAU=Math.PI*2;
+const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
+const f1=n=>(+n).toFixed(1);
+const $=s=>document.querySelector(s);
+
+/* ---------- geometri: breadboard (2.54 mm = 14 px) ---------- */
+const P=14, BX=280, BY=200;
+const cx=c=>BX+30+(c-1)*P;
+const RY={tp:218,tn:232,a:262,b:276,c:290,d:304,e:318,f:352,g:366,h:380,i:394,j:408,bn:438,bp:452};
+const H=(c,r)=>[cx(c),RY[r]];
+/* Arduino Uno: mm ölçüleri ile çizilir (68.58 × 53.34 mm) */
+const AX=354.3, AY=560, S=5.54;
+const ap=(x,y)=>[AX+x*S,AY+y*S];
+const dig=n=>n<=7?64.4-n*2.54:64.4-7*2.54-4.06-(n-8)*2.54;
+const PIN={D2:ap(dig(2),2.54),D9:ap(dig(9),2.54),V5:ap(38.1,50.8),GND:ap(40.64,50.8),A0:ap(50.8,50.8)};
+const MOT={x:920,y:112};
+
+const C={red:'#d8322f',blk:'#25272b',yel:'#e9b500',org:'#f07f1a',grn:'#1a9b48'};
+const WIRES=[
+  {id:'bat_p',c:C.red,pts:[[206,95],[250,95],[250,218],H(1,'tp')]},
+  {id:'bat_n',c:C.blk,pts:[[206,125],[236,125],[236,232],H(1,'tn')]},
+  {id:'gnd_br',c:C.blk,pts:[H(2,'tn'),H(2,'bn')]},
+  {id:'ard_5v',c:C.red,pts:[PIN.V5,[PIN.V5[0],866],[250,866],[250,452],H(1,'bp')]},
+  {id:'ard_gnd',c:C.blk,pts:[PIN.GND,[PIN.GND[0],880],[236,880],[236,438],H(1,'bn')]},
+  {id:'ard_a0',c:C.grn,pts:[PIN.A0,[PIN.A0[0],858],[1045,858],[1045,394],H(45,'i')]},
+  {id:'ard_d9',c:C.org,pts:[PIN.D9,H(20,'e')]},
+  {id:'ard_d2',c:C.yel,pts:[PIN.D2,[PIN.D2[0],505],[cx(36),505],H(36,'j')]},
+  {id:'j_src',c:C.blk,pts:[H(26,'a'),H(26,'tn')]},
+  {id:'j_d1',c:C.red,pts:[H(29,'a'),H(29,'tp')]},
+  {id:'mot_n',c:C.blk,pts:[[934,52],[934,16],[cx(25),16],H(25,'a')]},
+  {id:'mot_p',c:C.red,pts:[[906,52],[906,30],[cx(32),30],H(32,'tp')]},
+  {id:'sen_v',c:C.red,pts:[[850,132],[850,160],[cx(34),160],H(34,'f')]},
+  {id:'sen_g',c:C.blk,pts:[[857,132],[857,172],[cx(35),172],H(35,'f')]},
+  {id:'sen_o',c:C.yel,pts:[[864,132],[864,184],[cx(36),184],H(36,'f')]},
+  {id:'j_s5v',c:C.red,pts:[H(34,'j'),H(34,'bp')]},
+  {id:'j_sgnd',c:C.blk,pts:[H(35,'j'),H(35,'bn')]},
+  {id:'j_r1',c:C.red,pts:[H(40,'j'),H(40,'bp')]},
+  {id:'j_potg',c:C.blk,pts:[H(44,'j'),H(44,'bn')]},
+  {id:'j_potv',c:C.red,pts:[H(46,'j'),H(46,'bp')]},
+];
+const dPath=pts=>pts.map((p,i)=>(i?'L':'M')+f1(p[0])+' '+f1(p[1])).join(' ');
+const shade=(hex,k)=>{const n=parseInt(hex.slice(1),16);const r=Math.round(((n>>16)&255)*k),g=Math.round(((n>>8)&255)*k),b=Math.round((n&255)*k);return `rgb(${r},${g},${b})`;};
+
+/* ---------- çizim parçaları ---------- */
+function tag(x,y,text,anchor='middle',opt={}){
+  const fs=opt.fs||10, w=text.length*fs*0.58+10, h=fs+6;
+  const x0=anchor==='middle'?x-w/2:anchor==='end'?x-w:x;
+  return `<g class="tag"${opt.id?` id="${opt.id}"`:''}><rect x="${f1(x0)}" y="${f1(y-h/2)}" width="${f1(w)}" height="${h}" rx="3" fill="${opt.bg||'#ffffff'}" stroke="${opt.stroke||'#b6c4d8'}" stroke-width=".8" opacity=".96"/>`+
+    `<text x="${f1(x0+w/2)}" y="${f1(y+fs*0.36)}" text-anchor="middle" font-size="${fs}" font-family="Inter,system-ui,sans-serif" font-weight="600" fill="${opt.fg||'#14223b'}">${text}</text></g>`;
+}
+function defs(p){
+  return `<defs>
+  <linearGradient id="${p}metal" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef1f4"/><stop offset=".5" stop-color="#b9c0c8"/><stop offset="1" stop-color="#8e969f"/></linearGradient>
+  <radialGradient id="${p}motor" cx=".38" cy=".35" r=".75"><stop offset="0" stop-color="#e9edf1"/><stop offset=".55" stop-color="#aab2bb"/><stop offset="1" stop-color="#6f7780"/></radialGradient>
+  <linearGradient id="${p}pcb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#138893"/><stop offset="1" stop-color="#0c6d76"/></linearGradient>
+  <filter id="${p}sh" x="-10%" y="-10%" width="120%" height="125%"><feDropShadow dx="0" dy="2" stdDeviation="2.2" flood-color="#1b2a44" flood-opacity=".22"/></filter>
+  <filter id="${p}glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter>
+  </defs>`;
+}
+function breadboard(p){
+  let s=`<g filter="url(#${p}sh)"><rect x="${BX}" y="${BY}" width="746" height="272" rx="9" fill="#f4f2ec" stroke="#d2cdc1"/></g>`;
+  s+=`<rect x="${BX}" y="331" width="746" height="9" fill="#e4e0d6"/>`;
+  const ln=(y,c)=>`<line x1="${BX+14}" y1="${y}" x2="${BX+732}" y2="${y}" stroke="${c}" stroke-width="1.6"/>`;
+  s+=ln(208,'#e04545')+ln(242,'#3a6fd8')+ln(428,'#3a6fd8')+ln(462,'#e04545');
+  const txt=(x,y,t,c='#9a9483',a='middle',fs=8)=>`<text x="${x}" y="${y}" font-size="${fs}" text-anchor="${a}" fill="${c}" font-family="JetBrains Mono,monospace">${t}</text>`;
+  s+=txt(BX+9,221,'+','#d33',"middle",11)+txt(BX+9,236,'−','#36c',"middle",11)+txt(BX+9,441,'−','#36c',"middle",11)+txt(BX+9,456,'+','#d33',"middle",11);
+  s+=txt(BX+737,221,'+','#d33',"middle",11)+txt(BX+737,236,'−','#36c',"middle",11)+txt(BX+737,441,'−','#36c',"middle",11)+txt(BX+737,456,'+','#d33',"middle",11);
+  let holes='';
+  const rows=['tp','tn','a','b','c','d','e','f','g','h','i','j','bn','bp'];
+  for(let c=1;c<=50;c++){
+    for(const r of rows){ if((r[0]==='t'||r[0]==='b'&&r.length===2)&&(c%6===0)) continue;
+      holes+=`<rect x="${cx(c)-2.6}" y="${RY[r]-2.6}" width="5.2" height="5.2" rx="1"/>`; }
+  }
+  s+=`<g fill="#3e4046">${holes}</g>`;
+  for(const c of [1,5,10,15,20,25,30,35,40,45,50]){ s+=txt(cx(c),251,c)+txt(cx(c),425,c); }
+  'abcde'.split('').forEach(r=>{s+=txt(BX+12,RY[r]+3,r)+txt(BX+734,RY[r]+3,r);});
+  'fghij'.split('').forEach(r=>{s+=txt(BX+12,RY[r]+3,r)+txt(BX+734,RY[r]+3,r);});
+  return s;
+}
+function uno(p){
+  const hdr=(x0,n,y)=>{let s=`<rect x="${x0-1.27}" y="${y-1.27}" width="${n*2.54}" height="2.54" fill="#1b1c1f"/>`;
+    for(let i=0;i<n;i++) s+=`<rect x="${x0+i*2.54-0.5}" y="${y-0.5}" width="1" height="1" fill="#5d5f66"/>`; return s;};
+  const T=(x,y,t,fs=1.3,a='middle',rot=0,c='#e9f6f7',w=500)=>`<text x="${x}" y="${y}" font-size="${fs}" text-anchor="${a}" fill="${c}" font-weight="${w}" font-family="Inter,system-ui,sans-serif"${rot?` transform="rotate(${rot} ${x} ${y})"`:''}>${t}</text>`;
+  let s=`<g filter="url(#${p}sh)"><g transform="translate(${AX} ${AY}) scale(${S})">`;
+  s+=`<path d="M0.8,0 H64.8 L66.04,1.27 V3.8 L68.58,6.35 V37.1 L66.04,39.6 V51.6 L64.3,53.34 H0.8 Q0,53.34 0,52.5 V0.8 Q0,0 0.8,0Z" fill="url(#${p}pcb)" stroke="#0a565d" stroke-width=".3"/>`;
+  for(const [x,y] of [[13.97,2.54],[15.24,50.8],[66.04,7.62],[66.04,35.56]]) s+=`<circle cx="${x}" cy="${y}" r="1.6" fill="#f0f2f4" stroke="#cdb569" stroke-width=".45"/>`;
+  // USB-B ve DC jak
+  s+=`<rect x="-6.3" y="9.2" width="16" height="12" rx=".6" fill="url(#${p}metal)" stroke="#7d858e" stroke-width=".3"/><rect x="-5.2" y="11.6" width="5.2" height="7.2" fill="#9aa2ab"/>`;
+  s+=`<rect x="-1.9" y="40.4" width="13.4" height="9" rx=".8" fill="#1d1e21"/><circle cx="2" cy="44.9" r="2" fill="#3a3c41"/>`;
+  // reset, kristal, kondansatörler, regülatör
+  s+=`<rect x="2.6" y="1.4" width="6" height="6" rx=".6" fill="#c9cdd3" stroke="#8b929a" stroke-width=".25"/><circle cx="5.6" cy="4.4" r="1.7" fill="#b9302c"/>`;
+  s+=`<rect x="19.6" y="29.6" width="7.6" height="2.8" rx="1.4" fill="url(#${p}metal)"/>`+T(23.4,31.5,'16.000',1.1,'middle',0,'#444');
+  for(const x of [15.2,20.6]) s+=`<circle cx="${x}" cy="37.6" r="2.4" fill="url(#${p}metal)" stroke="#6d757e" stroke-width=".25"/><path d="M${x-1.6} 37.6 h3.2 M${x} 36 v3.2" stroke="#6d757e" stroke-width=".3"/>`;
+  s+=`<rect x="12.4" y="43.4" width="4.4" height="3.4" fill="#1b1c1f"/><rect x="12.9" y="42.4" width="3.4" height="1" fill="#9aa2ab"/>`;
+  s+=`<rect x="14.4" y="10.6" width="5" height="5" fill="#1b1c1f" transform="rotate(45 16.9 13.1)"/>`;
+  // ATmega328P
+  s+=`<rect x="31.4" y="34.4" width="35.4" height="7.8" rx=".4" fill="#1b1c1f"/><circle cx="31.4" cy="38.3" r="1" fill="#0c6d76"/>`;
+  for(let i=0;i<14;i++){s+=`<rect x="${32.6+i*2.54}" y="33.6" width=".7" height=".9" fill="#c7ccd2"/><rect x="${32.6+i*2.54}" y="42.1" width=".7" height=".9" fill="#c7ccd2"/>`;}
+  s+=T(49.1,38.9,'ATMEGA328P-PU',1.5,'middle',0,'#8d939b',600);
+  // ICSP
+  for(let i=0;i<3;i++)for(let j=0;j<2;j++) s+=`<rect x="${63.2+j*2.54-0.9}" y="${24+i*2.54-0.9}" width="1.8" height="1.8" fill="#1b1c1f"/><rect x="${63.2+j*2.54-0.35}" y="${24+i*2.54-0.35}" width=".7" height=".7" fill="#d9c27a"/>`;
+  // LED'ler
+  s+=`<rect x="24" y="8.6" width="1.6" height=".9" fill="#f5b400"/>`+T(27,9.4,'L',1.1,'start');
+  s+=`<rect x="24" y="11" width="1.6" height=".9" fill="#f5b400"/>`+T(27,11.8,'TX',1.1,'start');
+  s+=`<rect x="24" y="12.8" width="1.6" height=".9" fill="#f5b400"/>`+T(27,13.6,'RX',1.1,'start');
+  s+=`<rect x="58.6" y="16.4" width="1.6" height=".9" fill="#5fe06c"/>`+T(61.2,17.2,'ON',1.1,'start');
+  // başlıklar
+  s+=hdr(19.7,10,2.54)+hdr(46.62,8,2.54)+hdr(27.94,8,50.8)+hdr(50.8,6,50.8);
+  const top=['SCL','SDA','AREF','GND','13','12','~11','~10','~9','8'];
+  top.forEach((t,i)=>{s+=T(19.7+i*2.54+0.45,5,t,1.15,'end',-90);});
+  ['7','~6','~5','4','~3','2','TX→1','RX←0'].forEach((t,i)=>{s+=T(46.62+i*2.54+0.45,5,t,1.15,'end',-90);});
+  ['','IOREF','RESET','3.3V','5V','GND','GND','VIN'].forEach((t,i)=>{s+=T(27.94+i*2.54+0.45,48.4,t,1.15,'start',-90);});
+  ['A0','A1','A2','A3','A4','A5'].forEach((t,i)=>{s+=T(50.8+i*2.54+0.45,48.4,t,1.15,'start',-90);});
+  s+=T(44.5,11.2,'DIGITAL (PWM ~)',1.4,'middle',0,'#e9f6f7',600)+T(37,44.3,'POWER',1.3,'middle',0,'#e9f6f7',600)+T(57.2,44.3,'ANALOG IN',1.3,'middle',0,'#e9f6f7',600);
+  s+=T(44,25.5,'UNO',7,'middle',0,'#ffffff',700).replace('<text','<text font-style="italic" letter-spacing=".4"');
+  // kullanılan pinleri işaretle
+  for(const [x,y] of [[dig(2),2.54],[dig(9),2.54],[38.1,50.8],[40.64,50.8],[50.8,50.8]]) s+=`<rect x="${x-1.2}" y="${y-1.2}" width="2.4" height="2.4" fill="none" stroke="#ffd25a" stroke-width=".35"/>`;
+  s+=`<rect id="${p}mcuHi" x="30.4" y="33.2" width="37.4" height="10.2" rx="1" fill="none" stroke="#38f08c" stroke-width=".7" opacity="0"/>`;
+  s+=`</g></g>`;
+  return s;
+}
+function resistor(x1,y1,x2,y2,bands){
+  const mx=(x1+x2)/2,my=(y1+y2)/2,L=Math.hypot(x2-x1,y2-y1),ang=Math.atan2(y2-y1,x2-x1)*180/Math.PI,bl=Math.min(L-10,30);
+  let s=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#9aa2ab" stroke-width="2"/>`;
+  s+=`<g transform="translate(${mx} ${my}) rotate(${f1(ang)})"><rect x="${-bl/2}" y="-5.2" width="${bl}" height="10.4" rx="4.6" fill="#e6d1a3" stroke="#b39558" stroke-width=".8"/>`;
+  const pos=[-0.3,-0.12,0.06,0.3];
+  bands.forEach((c,i)=>{s+=`<rect x="${f1(pos[i]*bl-1.4)}" y="-5" width="2.8" height="10" fill="${c}"/>`;});
+  return s+`</g>`+legEnds([[x1,y1],[x2,y2]]);
+}
+const legEnds=pts=>pts.map(([x,y])=>`<circle cx="${x}" cy="${y}" r="2" fill="#7c848d"/>`).join('');
+const BR='#7a4a1e',BK='#111',OR='#f08a24',RD='#d32f2f',GD='#c9a227';
+function components(p){
+  let s='';
+  // R2 220Ω (D9 → kapı), R3 10k (kapı pull-down), R1 10k (pull-up)
+  s+=resistor(cx(20),RY.b,cx(24),RY.b,[RD,RD,BR,GD]);
+  s+=resistor(cx(24),RY.a,cx(24),RY.tn,[BR,BK,OR,GD]);
+  s+=resistor(cx(36),RY.h,cx(40),RY.h,[BR,BK,OR,GD]);
+  // D1 1N4007
+  const dx1=cx(25),dx2=cx(29),dy=RY.b;
+  s+=`<line x1="${dx1}" y1="${dy}" x2="${dx2}" y2="${dy}" stroke="#9aa2ab" stroke-width="2"/><rect x="${dx1+14}" y="${dy-5}" width="28" height="10" rx="2" fill="#232428"/><rect x="${dx2-19}" y="${dy-5}" width="4" height="10" fill="#c9ced6"/>`+legEnds([[dx1,dy],[dx2,dy]]);
+  // Q1 IRLZ44N (TO-220)
+  s+=`<g filter="url(#${p}sh)"><rect x="${cx(24)-10}" y="294" width="${2*P+20}" height="30" rx="2" fill="#1e2024"/><rect x="${cx(24)-10}" y="322" width="${2*P+20}" height="13" fill="url(#${p}metal)"/><circle cx="${cx(25)}" cy="328.5" r="3.4" fill="#f4f2ec"/></g>`;
+  s+=`<text x="${cx(25)}" y="312" font-size="7" text-anchor="middle" fill="#b9bfc8" font-family="JetBrains Mono,monospace">IRLZ44N</text>`;
+  for(const c of [24,25,26]) s+=`<line x1="${cx(c)}" y1="${RY.c}" x2="${cx(c)}" y2="296" stroke="#c9ced6" stroke-width="2.4"/>`;
+  s+=legEnds([H(24,'c'),H(25,'c'),H(26,'c')]);
+  s+=`<rect id="${p}qGlow" x="${cx(24)-13}" y="291" width="${2*P+26}" height="47" rx="4" fill="none" stroke="#14b8e6" stroke-width="2.5" opacity="0"/>`;
+  // C1 100nF seramik
+  s+=`<line x1="${cx(34)}" y1="${RY.g}" x2="${cx(34)+3}" y2="357" stroke="#9aa2ab" stroke-width="1.6"/><line x1="${cx(35)}" y1="${RY.g}" x2="${cx(35)-3}" y2="357" stroke="#9aa2ab" stroke-width="1.6"/>`;
+  s+=`<ellipse cx="${(cx(34)+cx(35))/2}" cy="352" rx="9" ry="6.5" fill="#d9822b" stroke="#a65e18"/><text x="${(cx(34)+cx(35))/2}" y="354.5" font-size="6" text-anchor="middle" fill="#4a2a08" font-family="JetBrains Mono,monospace">104</text>`+legEnds([H(34,'g'),H(35,'g')]);
+  // C2 100µF elektrolitik
+  s+=`<line x1="${cx(4)}" y1="190" x2="${cx(4)}" y2="${RY.tp}" stroke="#9aa2ab" stroke-width="1.8"/><line x1="${cx(5)}" y1="190" x2="${cx(5)}" y2="${RY.tn}" stroke="#9aa2ab" stroke-width="1.8"/>`;
+  s+=`<g filter="url(#${p}sh)"><circle cx="${(cx(4)+cx(5))/2}" cy="176" r="15" fill="#203a78" stroke="#132654"/></g><path d="M${(cx(4)+cx(5))/2+6} 162.3 A15 15 0 0 1 ${(cx(4)+cx(5))/2+6} 189.7" stroke="#c9d3e6" stroke-width="5" fill="none"/>`;
+  s+=`<text x="${(cx(4)+cx(5))/2-4}" y="180" font-size="10" text-anchor="middle" fill="#fff" font-weight="700">+</text>`+legEnds([H(4,'tp'),H(5,'tn')]);
+  // RV1 potansiyometre
+  s+=`<g filter="url(#${p}sh)"><rect x="${cx(44)-6}" y="326" width="${2*P+12+P}" height="44" rx="4" fill="#2d66b3" stroke="#1d4a86"/></g>`;
+  for(const c of [44,45,46]) s+=`<line x1="${cx(c)}" y1="368" x2="${cx(c)}" y2="${RY.h}" stroke="#c9ced6" stroke-width="2.2"/>`;
+  s+=`<circle cx="${cx(45)}" cy="347" r="15" fill="#eef1f4" stroke="#a8b1bb"/><g id="${p}potKnob" transform="rotate(0 ${cx(45)} 347)"><line x1="${cx(45)}" y1="347" x2="${cx(45)}" y2="335" stroke="#2d3440" stroke-width="3" stroke-linecap="round"/></g>`+legEnds([H(44,'h'),H(45,'h'),H(46,'h')]);
+  // M1 DC motor (önden görünüş) + mıknatıs diski
+  s+=`<g filter="url(#${p}sh)"><circle cx="${MOT.x}" cy="${MOT.y}" r="58" fill="url(#${p}motor)" stroke="#6b737c" stroke-width="2"/></g>`;
+  s+=`<circle cx="${MOT.x}" cy="${MOT.y}" r="51" fill="none" stroke="#8f979f" stroke-width="1.2"/>`;
+  for(const a of [Math.PI*0.25,Math.PI*1.25]) s+=`<circle cx="${f1(MOT.x+Math.cos(a)*46)}" cy="${f1(MOT.y+Math.sin(a)*46)}" r="3.6" fill="#5a6169"/>`;
+  s+=`<rect x="902" y="44" width="8" height="16" rx="1.5" fill="#d9b55a" stroke="#9c7f30"/><rect x="930" y="44" width="8" height="16" rx="1.5" fill="#d9b55a" stroke="#9c7f30"/>`;
+  s+=`<text x="896" y="58" font-size="11" font-weight="700" fill="#c62828" text-anchor="end">+</text><text x="944" y="58" font-size="12" font-weight="700" fill="#222">−</text>`;
+  s+=`<circle id="${p}motGlow" cx="${MOT.x}" cy="${MOT.y}" r="60" fill="none" stroke="#14b8e6" stroke-width="3" opacity="0"/>`;
+  s+=`<g id="${p}disc" transform="rotate(0 ${MOT.x} ${MOT.y})">`+
+     `<path d="M${MOT.x} ${MOT.y-44} A44 44 0 0 1 ${MOT.x} ${MOT.y+44} Z" fill="#2f6fe0" stroke="#1e4fae"/>`+
+     `<path d="M${MOT.x} ${MOT.y-44} A44 44 0 0 0 ${MOT.x} ${MOT.y+44} Z" fill="#e0393e" stroke="#a8262a"/>`+
+     `<text x="${MOT.x+25}" y="${MOT.y+6}" font-size="17" font-weight="700" fill="#fff" text-anchor="middle">S</text>`+
+     `<text x="${MOT.x-25}" y="${MOT.y+6}" font-size="17" font-weight="700" fill="#fff" text-anchor="middle">N</text>`+
+     `<circle cx="${MOT.x}" cy="${MOT.y}" r="9" fill="#c5cbd3" stroke="#8a929b"/><circle cx="${MOT.x}" cy="${MOT.y}" r="3.5" fill="#6f7780"/></g>`;
+  // U1 A3144 (sabit braket üzerinde)
+  s+=`<rect x="838" y="92" width="34" height="8" rx="2" fill="#b7bec7"/>`;
+  s+=`<circle id="${p}sensGlow" cx="857" cy="111" r="20" fill="#22c55e" opacity="0" filter="url(#${p}glow)"/>`;
+  s+=`<g filter="url(#${p}sh)"><path d="M846 100 H868 V124 H846 Q842 112 846 100Z" fill="#1d1f24"/></g><text x="857" y="114" font-size="5.5" text-anchor="middle" fill="#9aa2ab" font-family="JetBrains Mono,monospace">3144</text>`;
+  for(const x of [850,857,864]) s+=`<line x1="${x}" y1="124" x2="${x}" y2="132" stroke="#c9ced6" stroke-width="2"/>`;
+  // 12 V güç kaynağı
+  s+=`<g filter="url(#${p}sh)"><rect x="40" y="62" width="160" height="96" rx="8" fill="#2a2e35"/><rect x="40" y="62" width="30" height="96" rx="8" fill="#e2a72e"/><rect x="58" y="62" width="12" height="96" fill="#e2a72e"/></g>`;
+  s+=`<text x="132" y="118" font-size="30" font-weight="700" fill="#fff" text-anchor="middle" font-family="Space Grotesk,sans-serif">12 V</text><text x="132" y="138" font-size="9" fill="#aab3bf" text-anchor="middle">DC GÜÇ KAYNAĞI</text>`;
+  s+=`<rect x="198" y="88" width="10" height="14" rx="2" fill="#c62828"/><rect x="198" y="118" width="10" height="14" rx="2" fill="#2b2b2b" stroke="#777"/>`;
+  s+=`<text x="190" y="99" font-size="11" font-weight="700" fill="#ff8a80" text-anchor="end">+</text><text x="190" y="129" font-size="12" font-weight="700" fill="#cfd5dd" text-anchor="end">−</text>`;
+  return s;
+}
+function wires(p){
+  return WIRES.map(w=>{const d=dPath(w.pts),e1=w.pts[0],e2=w.pts[w.pts.length-1];
+    return `<g id="${p}${w.id}"><path d="${d}" stroke="rgba(20,30,50,.28)" stroke-width="7.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`+
+      `<path class="wc" d="${d}" stroke="${w.c}" stroke-width="4.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`+
+      `<circle cx="${e1[0]}" cy="${e1[1]}" r="3.4" fill="${shade(w.c,.6)}"/><circle cx="${e2[0]}" cy="${e2[1]}" r="3.4" fill="${shade(w.c,.6)}"/></g>`;}).join('');
+}
+function valueLabels(){
+  let s='';
+  s+=tag(cx(19)-4,RY.b,'R2 220Ω','end');
+  s+=tag(cx(23)+2,247,'R3 10kΩ','end');
+  s+=tag(cx(27)+4,RY.c+1,'D1 1N4007','start');
+  s+=tag(cx(27)+4,RY.e+1,'Q1 IRLZ44N','start');
+  s+=tag(cx(33)-2,RY.g+2,'C1 100nF','end');
+  s+=tag(cx(38),RY.i+3,'R1 10kΩ');
+  s+=tag(cx(45),318,'RV1 10kΩ');
+  s+=tag(386,178,'C2 100µF','start');
+  s+=tag(840,96,'U1 A3144','end');
+  s+=tag(MOT.x,186,'M1 DC motor 12 V');
+  s+=tag(760,700,'A1 · Arduino Uno R3','start',{fs:12});
+  s+=tag(760,722,'USB ile beslenir (5 V)','start',{fs:10,fg:'#52617b'});
+  return s;
+}
+
+/* ---------- akım yolları (simülasyon) ---------- */
+const FLOWS={
+  power:{c:'#14b8e6',pts:[[206,95],[250,95],[250,218],[cx(32),218],[cx(32),30],[906,30],[906,52],[906,72],[934,72],[934,52],[934,16],[cx(25),16],[cx(25),262],[cx(25),296],[cx(25),306],[cx(26),306],[cx(26),296],[cx(26),262],[cx(26),232],[236,232],[236,125],[206,125]]},
+  free:{c:'#a05cf0',pts:[[934,52],[934,16],[cx(25),16],[cx(25),262],[cx(25),276],[cx(29),276],[cx(29),262],[cx(29),218],[cx(32),218],[cx(32),30],[906,30],[906,52],[906,72],[934,72],[934,52]]},
+  gate:{c:'#ffffff',pts:[PIN.D9,[cx(20),318],[cx(20),276],[cx(24),276],[cx(24),294]]},
+  logic:{c:'#22c55e',pts:[PIN.V5,[PIN.V5[0],866],[250,866],[250,452],[cx(34),452],[cx(34),408],[cx(34),352],[cx(34),160],[850,160],[850,124],[857,124],[857,172],[cx(35),172],[cx(35),352],[cx(35),438],[236,438],[236,880],[PIN.GND[0],880],PIN.GND]},
+  pull:{c:'#ff4fb8',pts:[[cx(40),452],[cx(40),408],[cx(40),380],[cx(36),380],[cx(36),352],[cx(36),184],[864,184],[864,124],[857,124],[857,172],[cx(35),172],[cx(35),352],[cx(35),438],[236,438],[236,880],[PIN.GND[0],880],PIN.GND]},
+  pot:{c:'#22c55e',pts:[[cx(46),452],[cx(46),408],[cx(46),380],[cx(46),372],[cx(44),372],[cx(44),380],[cx(44),408],[cx(44),438]]},
+};
+function overlays(p){
+  let s='<g id="'+p+'flows">';
+  for(const k in FLOWS){const d=dPath(FLOWS[k].pts);
+    s+=`<g id="${p}fl_${k}" opacity="0"><path d="${d}" fill="none" stroke="rgba(10,20,40,.55)" stroke-width="6.5" stroke-linecap="round" stroke-dasharray="1 15" class="fo"/>`+
+       `<path d="${d}" fill="none" stroke="${FLOWS[k].c}" stroke-width="4" stroke-linecap="round" stroke-dasharray="1 15" class="fi"/></g>`;}
+  s+='</g>';
+  s+=`<circle id="${p}pulse" r="7" fill="#ffe14d" stroke="#8a6d00" stroke-width="1.5" opacity="0"/>`;
+  s+=tag(PIN.D2[0]+10,538,'D2 = HIGH','start',{id:p+'chD2',fs:11});
+  s+=tag(PIN.D9[0]-10,538,'D9 = PWM 89','end',{id:p+'chD9',fs:11});
+  s+=tag(PIN.A0[0]+14,886,'A0 = 400','start',{id:p+'chA0',fs:11});
+  s+=tag(760,140,'OUT = HIGH','end',{id:p+'chS',fs:11});
+  s+=tag(986,112,'600 RPM','start',{id:p+'chM',fs:11});
+  s+=tag(AX+49.1*S,AY+30.2*S,'—','middle',{id:p+'chMCU',fs:11,bg:'#0c1a14',fg:'#38f08c',stroke:'#38f08c'});
+  return s;
+}
+function build(svg,p,sim){
+  svg.innerHTML=defs(p)+breadboard(p)+uno(p)+components(p)+wires(p)+valueLabels()+(sim?overlays(p):'');
+}
+
+/* =========================================================
+   SİMÜLASYON (gerçek fizik, yavaş çekim gösterim)
+   ========================================================= */
+const svgS=$('#svgStatic'), svgM=$('#svgSim');
+if(!svgS||!svgM) return;
+build(svgS,'st_',false);
+build(svgM,'sm_',true);
+const g=id=>document.getElementById('sm_'+id);
+
+const MO={RPMMAX:2000,D0:0.12,EXP:0.9,TAU:0.15};
+const rpmSS=D=>D<=MO.D0?0:MO.RPMMAX*Math.pow((D-MO.D0)/(1-MO.D0),MO.EXP);
+const dutyFor=r=>r<=0?0:MO.D0+(1-MO.D0)*Math.pow(Math.min(1,r/MO.RPMMAX),1/MO.EXP);
+const HL={B0:60,BOP:35,BRP:25}, KP=0.0003, KI=0.0025;
+const thEdge=Math.PI-Math.acos(HL.BOP/HL.B0);
+const Bat=a=>HL.B0*Math.cos(a-Math.PI);           // sensör 180° konumunda (solda)
+const PWMVIS=1.4;                                   // gösterimdeki PWM frekansı (Hz)
+const EXDUR={1:13,2:16,3:10,4:11,5:10,6:10,7:13,8:11}; // ayrıntılı turda her adımın okuma süresi (s)
+
+let M, playing=false, started=false, explainOn=false, revSec=6;
+const ts=()=>0.1/revSec;                            // 600 RPM'de 1 tur = revSec saniye
+const snaps=[]; let lastLogTe=-1;
+function reset(){
+  const pot=+$('#sPot').value, r=600, w=r/60*TAU, a0=Math.PI+Math.acos(HL.BRP/HL.B0)+0.3;
+  const pw=Math.round(dutyFor(r)*255);
+  M={t:0,a:a0,rpm:r,pwm:pw,integ:pw/255,out:1,B:Bat(a0),lastEdge:-(a0-thEdge)/w,meas:null,a0v:pot,turn:0,
+     hist:[],log:[],td:0,pwmPh:0,explain:null,detail:2,tour:[1,2,3],lastOn:false,relDetail:false,edge:null,pulseT:-9,scope:[],releaseT:-9};
+  $('#sSerial').textContent=''; snaps.length=0; lastLogTe=-1;
+}
+function step(h){
+  const D=M.pwm/255;
+  M.rpm+=(rpmSS(D)-M.rpm)*h/MO.TAU; M.a+=M.rpm/60*TAU*h; M.t+=h;
+  const Bp=M.B,B=Bat(M.a); M.B=B;
+  if(M.out===1&&Bp<8&&B>=8) return 3;
+  if(M.out===1&&B>=HL.BOP){M.out=0;const f=clamp((HL.BOP-Bp)/((B-Bp)||1e-9),0,1);onEdge(M.t-h+h*f);return 1;}
+  if(M.out===0&&B<=HL.BRP){M.out=1;M.releaseT=M.td;return 2;}
+  return 0;
+}
+function onEdge(te){
+  const T=te-M.lastEdge, prev=M.lastEdge; M.lastEdge=te;
+  const meas=60/T, target=M.a0v+200, e=target-meas;
+  M.integ=clamp(M.integ+KI*e*T,0,1);
+  const old=M.pwm; M.pwm=Math.round(clamp(KP*e+M.integ,0,1)*255);
+  M.meas=meas; M.turn++;
+  M.edge={te,prev,T,meas,target,a0:M.a0v,e,old,pwm:M.pwm,P:KP*e*255,I:M.integ*255};
+  M.hist.push({meas,target,pwm:M.pwm}); if(M.hist.length>40)M.hist.shift();
+  if(te>lastLogTe+1e-7){lastLogTe=te;
+  const line=`[${te.toFixed(3)} s] T=${(T*1000).toFixed(1)} ms  RPM=${meas.toFixed(0)}  Hedef=${target}  PWM=${M.pwm}`;
+  const el=$('#sSerial'); el.textContent+=(el.textContent?'\n':'')+line;
+  const lines=el.textContent.split('\n'); if(lines.length>60) el.textContent=lines.slice(-60).join('\n');
+  el.scrollTop=el.scrollHeight;}
+  M.pulseT=M.td;
+  M.tour=[];
+  if(explainOn||M.detail>0){startEx([4,5,6,7]);M.relDetail=true;if(M.detail>0)M.detail--;} else startEx([7],{brief:true});
+}
+
+function exDur(){return M.explain.brief?2.2:EXDUR[M.explain.q[M.explain.i]];}
+const detailed=()=>explainOn||M.detail>0;
+function snapPush(){snaps.push(JSON.parse(JSON.stringify(M)));if(snaps.length>40)snaps.shift();}
+function startEx(q,extra){M.explain=Object.assign({q,i:0,t:0,pwm:M.lastOn},extra||{});if(!M.explain.brief)snapPush();}
+function nextEx(){if(!M.explain)return;const q=M.explain.q;M.explain.i++;M.explain.t=0;
+  if(M.explain.i>=q.length){M.explain=null;if(q[q.length-1]===8&&detailed())M.tour=[1,2,3];}
+  else snapPush();}
+/* Simülasyonu dt kadar ilerletir; bir açıklama duraklaması başlarsa true döner */
+function advance(dt,rec){
+  M.td+=dt; M.pwmPh=(M.pwmPh+dt*PWMVIS)%1;
+  const on=M.pwmPh<M.pwm/255;
+  if(M.tour[0]===1&&on&&!M.lastOn){M.lastOn=on;M.tour.shift();startEx([1],{pwm:true});return true;}
+  if(M.tour[0]===2&&!on&&M.lastOn){M.lastOn=on;M.tour.shift();startEx([2],{pwm:false});return true;}
+  M.lastOn=on;
+  const real=dt*ts(), n=Math.max(1,Math.ceil(real/0.0004)), h=real/n;
+  let paused=false;
+  for(let i=0;i<n;i++){const ev=step(h);
+    if(ev===1){paused=!!M.explain;break;}
+    if(ev===3&&M.tour.includes(3)){M.tour=[];startEx([3]);paused=true;break;}
+    if(ev===2&&M.relDetail){M.relDetail=false;startEx([8]);paused=true;break;}}
+  if(rec){M.scope.push({td:M.td,d2:M.out,d9:on?1:0});while(M.scope.length&&M.scope[0].td<M.td-16)M.scope.shift();}
+  return paused;
+}
+function fastForward(){for(let k=0;k<6000;k++){if(advance(1/60,true))return;}}
+/* ---------- arayüz ---------- */
+const steps=[...document.querySelectorAll('#sSteps li')];
+function setPlay(v){playing=v;$('#sPlay').textContent=v?'❚❚ Duraklat':'▶ Başlat';}
+$('#sPlay').addEventListener('click',()=>setPlay(!playing));
+$('#sReset').addEventListener('click',()=>{$('#sPot').value=400;reset();setPlay(true);});
+$('#sExplain').addEventListener('change',e=>{explainOn=e.target.checked;if(explainOn&&!M.tour.length&&!M.explain)M.tour=[1,2,3];});
+$('#sNext').addEventListener('click',()=>{if(M.explain&&!M.explain.brief){nextEx();if(!M.explain)fastForward();}else{M.explain=null;if(!M.tour.length)M.tour=[1,2,3];M.detail=Math.max(M.detail,1);fastForward();}setPlay(true);});
+$('#sPrev').addEventListener('click',()=>{if(!snaps.length)return;
+  if(M.explain&&!M.explain.brief&&snaps.length>1)snaps.pop();
+  M=JSON.parse(JSON.stringify(snaps[snaps.length-1]));M.explain.t=0;setPlay(true);});
+$('#sSlow').addEventListener('input',e=>{revSec=+e.target.value;$('#oSlow').textContent=`1 tur ≈ ${revSec} s`;});
+$('#sPot').addEventListener('input',e=>{M.a0v=+e.target.value;M.detail=2;if(!M.tour.length)M.tour=[1,2,3];});
+document.querySelectorAll('.potrow [data-t]').forEach(b=>b.addEventListener('click',()=>{const v=+b.dataset.t-200;$('#sPot').value=v;M.a0v=v;M.detail=2;if(!M.tour.length)M.tour=[1,2,3];}));
+reset();
+new IntersectionObserver(es=>{if(es[0].isIntersecting&&!started){started=true;setPlay(true);}},{threshold:0.25}).observe($('#sim'));
+
+function setTag(id,text,col){
+  const gr=g(id); if(!gr)return; const t=gr.querySelector('text'), r=gr.querySelector('rect');
+  if(t.textContent!==text){t.textContent=text;
+    const fs=+t.getAttribute('font-size'), w=text.length*fs*0.58+10, cxm=+r.getAttribute('x')+(+r.getAttribute('width'))/2;
+    const anchorEnd=gr.dataset.anchor;
+    if(!gr.dataset.x0){gr.dataset.x0=r.getAttribute('x');gr.dataset.w0=r.getAttribute('width');}
+    const x0=+gr.dataset.x0,w0=+gr.dataset.w0;
+    let nx = id==='chD9' ? x0+w0-w : (id==='chMCU' ? x0+w0/2-w/2 : x0);
+    r.setAttribute('x',f1(nx)); r.setAttribute('width',f1(w)); t.setAttribute('x',f1(nx+w/2));}
+  if(col) t.setAttribute('fill',col);
+}
+const flowEls={}; for(const k in FLOWS) flowEls[k]={g:g('fl_'+k),fo:g('fl_'+k).querySelector('.fo'),fi:g('fl_'+k).querySelector('.fi')};
+const d2Path=g('ard_d2').querySelector('.wc'), d2Len=d2Path.getTotalLength(), d9Path=g('ard_d9').querySelector('.wc');
+const discEl=g('disc'), knob=g('potKnob');
+
+/* ---------- grafikler ---------- */
+function prep(cv){const r=cv.getBoundingClientRect();const w=Math.max(10,r.width|0),h=Math.max(10,r.height|0),d=Math.min(2,devicePixelRatio||1);
+  if(cv.width!==w*d||cv.height!==h*d){cv.width=w*d;cv.height=h*d;}const c=cv.getContext('2d');c.setTransform(d,0,0,d,0,0);c.clearRect(0,0,w,h);return {c,w,h};}
+function drawScope(){
+  const {c,w,h}=prep($('#cScope')),L=34,R=6,win=14,t1=M.td,t0=t1-win,X=t=>L+(t-t0)/win*(w-L-R);
+  const lanes=[{k:'d2',y0:10,col:'#c99a00',lab:'D2'},{k:'d9',y0:66,col:'#f07f1a',lab:'D9'}];
+  c.font='10px "JetBrains Mono",monospace';
+  for(const ln of lanes){const hh=40,Y=v=>ln.y0+hh-(v?hh:0);
+    c.strokeStyle='#e1e8f1';c.beginPath();c.moveTo(L,Y(0));c.lineTo(w-R,Y(0));c.moveTo(L,Y(1));c.lineTo(w-R,Y(1));c.stroke();
+    c.fillStyle='#52617b';c.textAlign='right';c.fillText(ln.lab,L-14,ln.y0+hh/2+3);c.font='9px "JetBrains Mono",monospace';c.fillText('1',L-4,Y(1)+3);c.fillText('0',L-4,Y(0)+3);c.font='10px "JetBrains Mono",monospace';
+    c.strokeStyle=ln.col;c.lineWidth=2;c.beginPath();let first=true,pv=0;
+    for(const s of M.scope){if(s.td<t0)continue;const x=X(s.td),v=s[ln.k];if(first){c.moveTo(x,Y(v));first=false;}else if(v!==pv){c.lineTo(x,Y(pv));c.lineTo(x,Y(v));}pv=v;}
+    if(!first)c.lineTo(X(t1),Y(pv));c.stroke();c.lineWidth=1;}
+  c.fillStyle='#8b98ae';c.textAlign='right';c.fillText('zaman (yavaş çekim) →',w-R,h-2);
+}
+function drawTurns(){
+  const {c,w,h}=prep($('#cTurns')),L=40,R=6,T=8,B=18,pw=w-L-R,ph=h-T-B,N=16,arr=M.hist.slice(-N);
+  const ymax=1600,Y=v=>T+ph-clamp(v,0,ymax)/ymax*ph;
+  c.font='10px "JetBrains Mono",monospace';c.textAlign='right';c.fillStyle='#52617b';
+  for(const v of [0,400,800,1200,1600]){c.strokeStyle='#e7edf4';c.beginPath();c.moveTo(L,Y(v));c.lineTo(w-R,Y(v));c.stroke();c.fillText(v,L-4,Y(v)+3);}
+  const bw=pw/N;
+  arr.forEach((s,i)=>{const x=L+i*bw;c.fillStyle='#2563eb';c.fillRect(x+bw*0.18,Y(s.meas),bw*0.64,Y(0)-Y(s.meas));
+    c.strokeStyle='#0b7fc0';c.lineWidth=2;c.setLineDash([4,3]);c.beginPath();c.moveTo(x+1,Y(s.target));c.lineTo(x+bw-1,Y(s.target));c.stroke();c.setLineDash([]);c.lineWidth=1;});
+  c.textAlign='center';c.fillStyle='#8b98ae';c.fillText(arr.length?`son ${arr.length} tur · çubuk = ölçülen RPM, kesikli = hedef`:'ilk tur bekleniyor…',L+pw/2,h-4);
+}
+
+/* ---------- açıklama metinleri ---------- */
+function pwmSvg(duty,phase){
+  const W=320,H=74,x0=34,w=270,per=w/2,hi=duty*per,yH=14,yL=50;
+  let d=`M${x0} ${yL}`;
+  for(let k=0;k<2;k++){const a=x0+k*per;d+=` L${a} ${yL} L${a} ${yH} L${(a+hi).toFixed(1)} ${yH} L${(a+hi).toFixed(1)} ${yL} L${a+per} ${yL}`;}
+  const hl=phase==='on'?`<rect x="${x0}" y="${yH-4}" width="${hi.toFixed(1)}" height="${yL-yH+8}" fill="#14b8e6" opacity=".18"/>`
+          :`<rect x="${(x0+hi).toFixed(1)}" y="${yH-4}" width="${(per-hi).toFixed(1)}" height="${yL-yH+8}" fill="#a05cf0" opacity=".18"/>`;
+  const avgY=yL-(yL-yH)*duty, ms=1000/490;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;max-width:420px;margin-top:4px" role="img" aria-label="PWM dalga şekli">${hl}
+  <text x="2" y="${yH+4}" font-size="10" fill="#52617b">5 V</text><text x="2" y="${yL+4}" font-size="10" fill="#52617b">0 V</text>
+  <path d="${d}" fill="none" stroke="#f07f1a" stroke-width="2.4"/>
+  <line x1="${x0}" y1="${avgY.toFixed(1)}" x2="${x0+w}" y2="${avgY.toFixed(1)}" stroke="#7a4ee0" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="${x0+w+3}" y="${(avgY+3).toFixed(1)}" font-size="9" fill="#7a4ee0">ort.</text>
+  <text x="${(x0+hi/2).toFixed(1)}" y="${yH-5}" font-size="9" text-anchor="middle" fill="#0b7fc0">HIGH ${(duty*ms).toFixed(2)} ms</text>
+  <text x="${(x0+hi+(per-hi)/2).toFixed(1)}" y="${yL+12}" font-size="9" text-anchor="middle" fill="#7a4ee0">LOW ${((1-duty)*ms).toFixed(2)} ms</text>
+  <text x="${x0+per/2}" y="${H-1}" font-size="9" text-anchor="middle" fill="#8b98ae">← 1 periyot = ${ms.toFixed(2)} ms (490 Hz) →</text></svg>`;
+}
+function detailText(st){
+  const e=M.edge, R=(k,v)=>`<div class="r"><span>${k}</span><div>${v}</div></div>`;
+  const B=M.B, grp=n=>String(n).replace(/\B(?=(\d{3})+(?!\d))/g,' '), us=x=>grp(Math.round(x*1e6)), usT=x=>grp(Math.round((x+2.5)*1e6));
+  const duty=M.pwm/255, ms=1000/490;
+  if(st===1) return R('Şu an',`D9 = <b>HIGH (5 V)</b> · PWM değeri <b>${M.pwm}</b> / 255 → periyodun <b>%${(duty*100).toFixed(1)}</b>'i boyunca HIGH`)
+    +R('Kapı',`D9 → R2 (220 Ω) → kapı. Kapı gerilimi ≈ 5 × 10k / (10k + 220) = <b>4.89 V</b> (eşik 1–2 V) → Q1 <b>iletimde</b>`)
+    +R('Akım yolu','12 V (+) → M1 → Q1 drain → source → GND → 12 V (−) <span style="color:#0b8fb8">(mavi noktalar)</span>')
+    +R('Süre',`HIGH süresi = ${(duty*100).toFixed(1)}% × ${ms.toFixed(2)} ms = <b>${(duty*ms).toFixed(2)} ms</b>`)
+    +R('Şekil',pwmSvg(duty,'on'));
+  if(st===2){const prev=e&&e.old!==M.pwm?`Son ölçümden önce PWM <b>${e.old}</b> (%${(e.old/2.55).toFixed(1)}) idi, şimdi <b>${M.pwm}</b> (%${(duty*100).toFixed(1)}): HIGH süresi ${(e.old/255*ms).toFixed(2)} → ${(duty*ms).toFixed(2)} ms ${M.pwm>e.old?'uzadı → motor hızlanır':'kısaldı → motor yavaşlar'}.`:'PWM değeri son ölçümden beri değişmedi: motor aynı ortalama gerilimi görüyor.';
+    return R('Şu an','D9 = <b>LOW (0 V)</b> · R3 kapıyı GND\'ye çeker → Q1 <b>kesimde</b>, 12 V kaynaktan akım çekilmez')
+    +R('Akım yolu','Motor bobinindeki akım D1 üzerinden döner: M1 (−) → D1 → M1 (+) <span style="color:#7a4ee0">(mor noktalar)</span> ve azalır')
+    +R('Süre',`LOW süresi = ${ms.toFixed(2)} − ${(duty*ms).toFixed(2)} = <b>${((1-duty)*ms).toFixed(2)} ms</b>`)
+    +R('Ortalama',`V<sub>ort</sub> = görev oranı × 12 V = ${duty.toFixed(3)} × 12 = <b>${(duty*12).toFixed(2)} V</b>`)
+    +R('Şekil',pwmSvg(duty,'off'))
+    +R('Değişim',prev);}
+  if(st===3) return R('Şu an',`Sensördeki alan B = <b>${Math.max(0,B).toFixed(1)} mT</b>; açma eşiğine (35 mT) <b>${Math.max(0,35-B).toFixed(1)} mT</b> kaldı.`)
+    +R('Devrede','OUT boşta → R1 (10 kΩ) D2\'yi 5 V\'a çeker. D2 ≈ <b>5 V (HIGH)</b>, R1 akımı = <b>0 mA</b>. Sensör 5 V hattından besleniyor <span style="color:#16a34a">(yeşil noktalar)</span>.')
+    +R('Kodda','<code>loop()</code> içinde <code>if (!yeniOlcum) return;</code> → yeni ölçüm bekleniyor.')
+    +(M.turn>0&&M.td-M.releaseT<3?R('Az önce','Sensör bıraktı, pull-up D2\'yi yeniden HIGH yaptı (8. adımın sonu).'):'');
+  if(!e) return R('Şu an','İlk düşen kenar bekleniyor.');
+  if(st===4) return R('Şu an','B = <b>35 mT ≥ B_OP</b> → sensörün çıkış transistörü iletime geçti.')
+    +R('Devrede','OUT → GND bağlandı. D2: <b>5 V → ≈ 0.2 V (LOW)</b>. R1 üzerinden ≈ <b>0.5 mA</b> akmaya başladı <span style="color:#d6339a">(pembe noktalar)</span>.')
+    +R('Kodda','<code>attachInterrupt(digitalPinToInterrupt(2), hallKesme, FALLING)</code> → <code>hallKesme()</code> çağrıldı.')
+    +R('Sinyal','Sarı noktanın D2 kablosu boyunca Arduino\'ya gitmesini izleyin.');
+  if(st===5) return R('Okunan',`<code>simdi = micros()</code> = <b>${usT(e.te)} µs</b>`)
+    +R('Önceki',`<code>sonKenar</code> = <b>${usT(e.prev)} µs</b>`)
+    +R('Sonuç',`T = ${usT(e.te)} − ${usT(e.prev)} = <b>${us(e.T)} µs = ${(e.T*1000).toFixed(2)} ms</b>`)
+    +R('Kodda','<code>periyot = simdi - sonKenar; sonKenar = simdi; yeniOlcum = true;</code>')
+    +R('Kablolar','Bu adımda yeni bir akım yoktur; işlem Arduino\'nun içinde olur (işlemci vurgulu).');
+  if(st===6) return R('Saniyede',`1 / T = 1 / ${e.T.toFixed(5)} s = <b>${(1/e.T).toFixed(2)} tur/s</b>`)
+    +R('Dakikada',`60 × ${(1/e.T).toFixed(2)} = <b>${e.meas.toFixed(1)} RPM</b>`)
+    +R('Kodda',`<code>rpm = 60000000.0 / ${us(e.T)}</code> → <b>${e.meas.toFixed(0)} RPM</b>`)
+    +R('Not','Tur başına 1 darbe olduğu için ayrıca bölme yapılmaz.');
+  if(st===7){const d=e.pwm-e.old, cls=e.e>15?'up':e.e<-15?'down':'eq';
+    const hint=e.e>15?'Motor hedeften yavaş → PWM artırılır, motora daha uzun süre gerilim verilir.':e.e<-15?'Motor hedeften hızlı → PWM azaltılır, motora daha kısa süre gerilim verilir.':'Motor hedefe çok yakın → PWM neredeyse aynı kalır (dengede).';
+    return R('Hedef',`A0 = <b>${e.a0}</b> (pot orta ucu ≈ ${(e.a0/1023*5).toFixed(2)} V) → hedef = ${e.a0} + 200 = <b>${e.target} RPM</b>`)
+    +R('Hata',`${e.target} − ${e.meas.toFixed(1)} = <b>${e.e>=0?'+':''}${e.e.toFixed(1)} RPM</b> · <span class="hint ${cls}">${hint}</span>`)
+    +R('P + I',`P = 0.077 × ${e.e.toFixed(1)} = <b>${e.P.toFixed(2)}</b> · I (birikmiş) = <b>${e.I.toFixed(1)}</b> → toplam ≈ <b>${(e.P+e.I).toFixed(2)}</b> → en yakın tam sayı`)
+    +R('Çıkış',`<code>analogWrite(9, ${e.pwm})</code> · PWM <b>${e.old} → ${e.pwm}</b> (${d>0?'+':''}${d}) · görev oranı <b>%${(e.pwm/2.55).toFixed(1)}</b> → ortalama ≈ <b>${(e.pwm/255*12).toFixed(2)} V</b>`)
+    +R('Etkisi',`Bir periyottaki HIGH süresi ${(e.old/255*ms).toFixed(2)} ms → <b>${(e.pwm/255*ms).toFixed(2)} ms</b>.`);}
+  if(st===8) return R('Şu an',`B = <b>${B.toFixed(1)} mT</b>; bırakma eşiği B_RP = 25 mT. ${M.out===0?'Alan hâlâ eşiğin üstünde → D2 LOW kalıyor.':'Alan 25 mT\'nin altına indi → sensör bıraktı.'}`)
+    +R('Devrede',M.out===0?'D2 ≈ <b>0.2 V (LOW)</b>, R1 → OUT → GND üzerinden ≈ <b>0.5 mA</b> akıyor <span style="color:#d6339a">(pembe)</span>.':'OUT yeniden boşta → R1 D2\'yi <b>5 V (HIGH)</b> yaptı, R1 akımı 0.')
+    +R('Kodda','Kesme yalnızca <code>FALLING</code> için ayarlı → bu yükselen kenar <b>sayılmaz</b>.')
+    +R('Sonra','Disk dönmeye devam eder; bir sonraki turda döngü 1. adımdan (PWM) başlar.');
+  return '—';
+}
+
+/* ---------- döngü ---------- */
+let last=performance.now(), dashOff=0, uiAcc=0, visible=false;
+new IntersectionObserver(es=>{visible=es[0].isIntersecting;},{threshold:0}).observe($('#sim'));
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  if(!visible) return;
+  if(playing){
+    if(M.explain){M.explain.t+=dt; if(M.explain.t>=exDur()) nextEx();}
+    else advance(dt,true);
+    dashOff-=dt*30;
+  }
+  const duty=M.pwm/255;
+  const st=M.explain?M.explain.q[M.explain.i]:(M.out===0?8:3);
+  const pwmOn=M.explain?(st===1?true:st===2?false:M.explain.pwm):(M.pwmPh<duty);
+  // görseller
+  discEl.setAttribute('transform',`rotate(${f1((M.a*180/Math.PI)%360)} ${MOT.x} ${MOT.y})`);
+  knob.setAttribute('transform',`rotate(${f1(-135+270*M.a0v/1023)} ${cx(45)} 347)`);
+  // akımlar: duraklamada yalnızca o adımda gerçekten akan yollar
+  const none={power:0,free:0,gate:0,logic:0,pull:0,pot:0};
+  let act;
+  if(M.explain&&!M.explain.brief){
+    act=Object.assign({},none,({1:{power:1,gate:1},2:{free:1},3:{logic:1},4:{pull:1},5:{},6:{},7:{pot:1},8:M.out===0?{pull:1}:{logic:1}})[st]);
+  } else act={power:pwmOn?1:0,free:!pwmOn&&M.rpm>5?0.9:0,gate:pwmOn?0.85:0,logic:0.5,pull:M.out===0?1:0,pot:0.4};
+  for(const k in flowEls){const fe=flowEls[k];fe.g.setAttribute('opacity',act[k]);fe.fo.setAttribute('stroke-dashoffset',f1(dashOff));fe.fi.setAttribute('stroke-dashoffset',f1(dashOff));}
+  const ex=M.explain&&!M.explain.brief;
+  g('qGlow').setAttribute('opacity',pwmOn&&(!ex||st===1)?0.9:0);
+  g('motGlow').setAttribute('opacity',pwmOn&&(!ex||st===1)?0.7:(ex&&st===2?0.45:0.12));
+  g('motGlow').setAttribute('stroke',ex&&st===2?'#a05cf0':'#14b8e6');
+  g('sensGlow').setAttribute('opacity',M.out===0?0.85:0);
+  g('mcuHi').setAttribute('opacity',M.explain&&st>=4&&st<=7?1:0);
+  d2Path.setAttribute('stroke',M.out?'#ffd000':'#7d6a12');
+  d9Path.setAttribute('stroke',pwmOn?'#ff8a1f':'#8a4a10');
+  const pulse=g('pulse');
+  if(M.explain&&(st===4||M.explain.brief)){const u=clamp(M.explain.t/(M.explain.brief?0.9:2.2),0,1),pt=d2Path.getPointAtLength(d2Len*(1-u));pulse.setAttribute('cx',f1(pt.x));pulse.setAttribute('cy',f1(pt.y));pulse.setAttribute('opacity',1);}
+  else pulse.setAttribute('opacity',0);
+  uiAcc+=dt; if(uiAcc>0.07){uiAcc=0;
+    setTag('chD2',M.out?'D2 = HIGH':'D2 = LOW',M.out?'#14223b':'#b42318');
+    setTag('chD9',`D9 = PWM ${M.pwm} (${pwmOn?'HIGH':'LOW'})`);
+    setTag('chA0',`A0 = ${M.a0v} → hedef ${M.a0v+200}`);
+    setTag('chS',M.out?'OUT = HIGH (serbest)':'OUT = LOW (S kutbu)',M.out?'#14223b':'#12994a');
+    setTag('chM',`${Math.round(M.rpm)} RPM`);
+    const mcuTxt=M.explain&&M.edge&&st>=4&&st<=7?({4:'kesme!',5:'T = '+(M.edge.T*1000).toFixed(1)+' ms',6:'RPM = '+M.edge.meas.toFixed(0),7:'PWM → '+M.edge.pwm})[st]:'loop() bekliyor';
+    setTag('chMCU',mcuTxt);
+    steps.forEach((li,i)=>li.classList.toggle('on',i===st-1));
+    const dt2=detailText(st); const de=$('#sDetail'); if(de.dataset.k!==dt2){de.innerHTML=dt2;de.dataset.k=dt2;}
+    const pill=$('#sPill'); pill.textContent=pwmOn?'D9 HIGH':'D9 LOW'; pill.className='pill '+(pwmOn?'on':'off');
+    $('#sPower').innerHTML=pwmOn?`<b>Güç devresi:</b> Q1 iletimde, motor 12 V görüyor. Görev oranı %${(duty*100).toFixed(1)} → ortalama ≈ ${(duty*12).toFixed(2)} V.`
+      :`<b>Güç devresi:</b> Q1 kesimde, motor akımı D1 üzerinden dönüp azalıyor. Gerçek PWM 490 Hz; burada yavaşlatıldı.`;
+    const dur=M.explain?exDur():0; $('#sExBar').style.width=M.explain?(clamp(M.explain.t/dur,0,1)*100).toFixed(1)+'%':'0%';
+    $('#sExNote').textContent=M.explain?(M.explain.brief?'Hesap sonucu gösteriliyor…':`${st}. adım açıklanıyor · ${Math.ceil(dur-M.explain.t)} s · “Sonraki adım” ile geçebilir, “Önceki adım” ile geri dönebilirsiniz`)
+      :(detailed()?'Ayrıntılı tur: sıradaki adımda durulacak':'Kısa mod: her turda yalnızca hesap sonucu gösterilir · “Sonraki adım” ayrıntılı anlatımı başlatır');
+    $('#sTurn').textContent='Tur '+M.turn;
+    $('#sTgtTxt').textContent=`A0 = ${M.a0v} → ${M.a0v+200} RPM`;
+    $('#vReal').textContent=Math.round(M.rpm); $('#vMeas').textContent=M.meas?M.meas.toFixed(0):'—'; $('#vTgt').textContent=M.a0v+200;
+    $('#vPwm').textContent=`${M.pwm} / 255`; $('#vDuty').textContent=`%${(duty*100).toFixed(1)}`; $('#vVolt').textContent=`≈ ${(duty*12).toFixed(2)} V`; $('#vErr').textContent=M.meas?`${M.a0v+200-M.meas>=0?'+':''}${(M.a0v+200-M.meas).toFixed(0)} RPM`:'—'; $('#vD2').textContent=M.out?'HIGH':'LOW'; $('#vD2').style.color=M.out?'':'#b42318';
+    $('#vT').textContent=M.edge?(M.edge.T*1000).toFixed(1)+' ms':'—';
+    drawTurns();
+  }
+  drawScope();
+}
+requestAnimationFrame(frame);
+})();
+
+</script>
