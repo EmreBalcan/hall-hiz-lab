@@ -250,39 +250,39 @@ canvas.sc{width:100%;height:120px;display:block;}
 
   <aside id="panel" class="off">
     <section class="sec" id="secChain">
-      <h3>Dijital Hall sensörü içi <em id="chOut">OUT = 0</em></h3>
+      <h3>Analog Hall sensörü (SS49E) → Arduino <em id="chOut">OUT = 2.50 V</em></h3>
       <div class="chain">
         <div class="node" id="nHall">Hall elemanı (yarı iletken) <span id="nVh">V_H ∝ I·B</span></div>
         <div class="arrow">▼</div>
-        <div class="node" id="nAmp">Yükselteç <span>küçük V_H büyütülür</span></div>
+        <div class="node" id="nAmp">Oransal yükselteç → OUT <span id="nAmpS">OUT = 2,5 V + 14 mV/mT × B</span></div>
         <div class="arrow">▼</div>
-        <div class="node" id="nSch">Schmitt tetikleyici <span id="nSchS">B_OP 35 / B_RP 25 mT</span></div>
+        <div class="node" id="nSch">Arduino ADC (A1) <span id="nSchS">0–5 V → 0–1023</span></div>
         <div class="arrow">▼</div>
-        <div class="node" id="nOut">Çıkış transistörü → OUT <span id="nOutS">0</span></div>
+        <div class="node" id="nOut">Yazılım eşiği <span id="nOutS">612 (≈ 35 mT) / 583 (≈ 25 mT)</span></div>
       </div>
-      <p class="small">B, açma eşiği B_OP'u geçince çıkış 1 olur; bırakma eşiği B_RP'nin altına inince 0'a döner. İki eşik arasındaki fark (histerezis) gürültüde titremeyi önler.</p>
-      <p class="small"><b class="k-a">Model bağımlıdır:</b> Birçok dijital Hall anahtarı açık-drenaj çıkışlıdır ve algılamada OUT gerilimi LOW olur (aktif düşük). Kutup duyarlılığı (tek kutuplu, iki kutuplu, mandallı) ve eşik değerleri de modele göre değişir. Burada mantıksal 1 = “S kutbu algılandı”.</p>
+      <p class="small">Analog sensör “var / yok” demez; alanla orantılı bir gerilim verir. Alan yokken OUT ≈ 2,5 V; S kutbu gerilimi yükseltir, N kutbu düşürür. Eşik kararını Arduino yazılımda verir: A1 ≥ 612 olunca yeni tur, A1 ≤ 583 olunca mıknatıs uzaklaştı (histerezis).</p>
+      <p class="small"><b class="k-a">Model bağımlıdır:</b> Duyarlılık (≈ 14 mV/mT) ve çıkış aralığı (≈ 0,9–4,2 V) SS49E için tipik değerlerdir; başka sensörde eşikler veri sayfasına göre yeniden hesaplanır.</p>
     </section>
 
     <section class="sec" id="secB">
       <h3>Sensör noktasında manyetik alan <em id="bVal">0 mT</em></h3>
       <canvas id="cvB"></canvas>
-      <div class="legend"><span class="k-c">━ B (sensör yüzeyine dik)</span><span class="k-g"><i></i>B_OP = 35 mT</span><span class="k-a"><i></i>B_RP = 25 mT</span></div>
+      <div class="legend"><span class="k-c">━ B (sensör yüzeyine dik)</span><span class="k-g"><i></i>üst eşik 35 mT (A1 = 612)</span><span class="k-a"><i></i>alt eşik 25 mT (A1 = 583)</span></div>
       <p class="small">+B: mıknatısın S kutbu sensöre bakıyor (yaygın veri sayfası işareti).</p>
     </section>
 
     <section class="sec" id="secO">
-      <h3>Sensör dijital çıkışı <em id="oVal">0</em></h3>
+      <h3>Analog çıkış → A1 <em id="oVal">2.50 V</em></h3>
       <canvas id="cvO"></canvas>
-      <div class="legend"><span class="k-g">━ OUT (0/1)</span><span class="k-g">▲ yükselen kenar (1 / devir)</span><span id="oFreq" class="k-c"></span></div>
+      <div class="legend"><span class="k-g">━ OUT gerilimi (V)</span><span class="k-g">▲ eşik geçişi (1 / devir)</span><span id="oFreq" class="k-c"></span></div>
     </section>
 
     <section class="sec calc" id="secCalc">
-      <h3>Mikrodenetleyici: kenar sayımı <em id="gNow">sayılıyor: 0</em></h3>
+      <h3>Mikrodenetleyici: eşik geçişi sayımı <em id="gNow">sayılıyor: 0</em></h3>
       <div class="gatebar"><b id="gBar"></b></div>
       <div class="row"><span>Ölçüm süresi</span><b>1 s</b></div>
-      <div class="row"><span>Algılanan yükselen kenar (son pencere)</span><b id="gN">—</b></div>
-      <div class="row"><span>Her tam devirdeki yükselen kenar</span><b>1</b></div>
+      <div class="row"><span>Algılanan eşik geçişi (son pencere)</span><b id="gN">—</b></div>
+      <div class="row"><span>Her tam devirdeki eşik geçişi</span><b>1</b></div>
       <div class="formula" id="formula">
         <div>RPM = (Saniyedeki darbe × 60) / Devir başına darbe</div>
         <div id="f2">RPM = (— × 60) / 1</div>
@@ -308,7 +308,7 @@ canvas.sc{width:100%;height:120px;display:block;}
       <h3>PWM sinyali (sürücü girişi) <em id="pVal">D = 0 %</em></h3>
       <canvas id="cvP"></canvas>
       <div class="legend"><span class="k-a">━ PWM (0 / 12 V)</span><span class="k-v"><i></i>ortalama gerilim</span></div>
-      <p class="small">PWM <b>frekansı sabittir</b> (bu örnekte 20 kHz; grafikte okunabilsin diye yavaşlatıldı). Değişen yalnızca <b>görev oranıdır</b>: darbenin yüksek kaldığı sürenin periyoda oranı. Görev oranı ile RPM doğrusal orantılı değildir (ölü bölge, sürtünme, yük).</p>
+      <p class="small">PWM <b>frekansı sabittir</b> (Arduino D9: ≈ 490 Hz, 1 periyot ≈ 2,04 ms; grafikte okunabilsin diye yavaşlatıldı). Değişen yalnızca <b>görev oranıdır</b>: darbenin yüksek kaldığı sürenin periyoda oranı. Görev oranı ile RPM doğrusal orantılı değildir (ölü bölge, sürtünme, yük).</p>
     </section>
   </aside>
 
@@ -342,11 +342,11 @@ canvas.sc{width:100%;height:120px;display:block;}
       <h2 id="h-devre">Devre şeması</h2>
       <p>Arduino Uno ile kurulmuş hız ölçüm ve kontrol devresi. Üst yarı 12 V motor güç devresi, alt yarı 5 V sensör ve hedef hız devresi. Tüm GND hatları ortaktır.</p>
     </div>
-    <figure class="boardfig"><svg id="svgStatic" viewBox="0 0 1080 900" role="img" aria-label="Arduino Uno, breadboard, A3144 Hall sensörü, MOSFET, diyot, dirençler, potansiyometre ve DC motordan oluşan devre"></svg></figure>
+    <figure class="boardfig"><svg id="svgStatic" viewBox="0 0 1080 900" role="img" aria-label="Arduino Uno, breadboard, SS49E analog Hall sensörü, MOSFET, diyot, dirençler, potansiyometre ve DC motordan oluşan devre"></svg></figure>
     <div class="wirekey">
       <span style="--c:#d8322f">Kırmızı: +5 V / +12 V</span>
       <span style="--c:#25272b">Siyah: GND (ortak)</span>
-      <span style="--c:#e9b500">Sarı: sensör çıkışı → D2</span>
+      <span style="--c:#e9b500">Sarı: sensör çıkışı → R1 → A1</span>
       <span style="--c:#f07f1a">Turuncu: PWM → D9</span>
       <span style="--c:#1a9b48">Yeşil: potansiyometre → A0</span>
     </div>
@@ -355,10 +355,11 @@ canvas.sc{width:100%;height:120px;display:block;}
         <table class="bom">
           <thead><tr><th>Etiket</th><th>Malzeme</th><th>Değer</th><th>Görevi</th></tr></thead>
           <tbody>
-            <tr><td>A1</td><td>Arduino Uno R3</td><td>5 V, 16 MHz</td><td>D2 kesme ile kenar sayar, RPM hesaplar, D9'dan PWM üretir. USB'den beslenir.</td></tr>
-            <tr><td>U1</td><td>A3144 Hall sensörü</td><td>dijital, açık kollektör</td><td>S kutbu yaklaşınca çıkışı GND'ye çeker (LOW).</td></tr>
-            <tr><td>R1</td><td>Direnç (pull-up)</td><td>10 kΩ</td><td>Sensör bırakınca D2'yi 5 V'a çeker (HIGH).</td></tr>
+            <tr><td>A1</td><td>Arduino Uno R3</td><td>5 V, 16 MHz</td><td>A1'den sensör gerilimini okur, yazılım eşiğiyle turu algılar, RPM hesaplar, D9'dan PWM üretir. USB'den beslenir.</td></tr>
+            <tr><td>U1</td><td>SS49E Hall sensörü</td><td>analog, ≈ 14 mV/mT</td><td>Alanla orantılı gerilim verir: alan yokken 2,5 V, S kutbu önünde ≈ 3,3 V.</td></tr>
+            <tr><td>R1</td><td>Direnç (süzgeç)</td><td>1 kΩ</td><td>C3 ile RC alçak geçiren süzgeç; A1 girişini korur.</td></tr>
             <tr><td>C1</td><td>Seramik kondansatör</td><td>100 nF</td><td>Sensör beslemesindeki gürültüyü süzer.</td></tr>
+            <tr><td>C3</td><td>Seramik kondansatör</td><td>100 nF</td><td>R1 ile süzgeç (fc ≈ 1,6 kHz); ADC örneklemesine yük deposu.</td></tr>
             <tr><td>RV1</td><td>Potansiyometre</td><td>10 kΩ</td><td>Hedef hız ayarı (A0). Hedef = A0 + 200 RPM.</td></tr>
             <tr><td>R2</td><td>Direnç (kapı)</td><td>220 Ω</td><td>D9 ile MOSFET kapısı arasındaki akımı sınırlar.</td></tr>
             <tr><td>R3</td><td>Direnç (pull-down)</td><td>10 kΩ</td><td>Arduino açılırken kapıyı LOW tutar, motor kendiliğinden dönmez.</td></tr>
@@ -372,48 +373,86 @@ canvas.sc{width:100%;height:120px;display:block;}
       </div>
       <details class="code" open>
         <summary>Arduino kodu (hız ölçümü + PI hız kontrolü)</summary>
-<pre>const byte HALL_PIN = 2;   // A3144 OUT (10 kΩ pull-up)
-const byte PWM_PIN  = 9;   // MOSFET kapısı (220 Ω)
-const byte POT_PIN  = A0;  // hedef hız potansiyometresi
+<pre>// Analog Hall sensörü (SS49E) ile DC motor hız ölçümü ve PI kontrolü
+// Kart: Arduino Uno R3 (ATmega328P, 16 MHz)
+const byte HALL_PIN = A1;   // SS49E OUT → R1 (1 kΩ) → A1, C3 (100 nF) süzgeç
+const byte PWM_PIN  = 9;    // MOSFET kapısı (R2 = 220 Ω), Timer1 ≈ 490 Hz
+const byte POT_PIN  = A0;   // hedef hız potansiyometresi (RV1)
 
-volatile unsigned long sonKenar = 0;
-volatile unsigned long periyot  = 0;   // iki düşen kenar arası (µs)
-volatile bool yeniOlcum = false;
+const int ESIK_UST = 612;   // ≈ 2,99 V ≈ 35 mT: mıknatıs geldi (yeni tur)
+const int ESIK_ALT = 583;   // ≈ 2,85 V ≈ 25 mT: mıknatıs gitti
 
-float integ = 0;                        // PI kontrolcünün integral kısmı
-const float KP = 0.077, KI = 0.64;      // PWM birimi (0–255) cinsinden
+const float KP = 0.077;                     // PWM / RPM
+const float KI = 0.64;                      // PWM / (RPM·s)
+const unsigned long ZAMAN_ASIMI = 500000UL; // µs: 0,5 s geçiş yoksa motor durmuş sayılır
+const unsigned long MIN_PERIYOT = 20000UL;  // µs: daha kısa aralıklı geçiş = parazit
+const float DT_MAX = 0.1;                   // s: integral adımı üst sınırı
+const byte  KALKIS_ADIM = 25;               // zaman aşımında PWM artışı (rampa)
 
-void hallKesme() {                      // her turda 1 kez çalışır
-  unsigned long simdi = micros();
-  periyot  = simdi - sonKenar;
-  sonKenar = simdi;
-  yeniOlcum = true;
-}
+bool miknatisVar = false;      // S kutbu şu an sensörün önünde mi?
+bool ilkGecis    = true;       // önceki geçişin zamanı bilinmiyor
+unsigned long sonGecis   = 0;  // son geçerli eşik geçişinin zamanı (µs)
+unsigned long sonKontrol = 0;  // son kontrol adımının zamanı (µs)
+int   tepe  = 0;               // son geçişteki en yüksek A1 değeri
+float integ = 0;               // PI integral terimi (PWM birimi)
+int   pwm   = 0;               // D9'a yazılan değer (0–255)
 
 void setup() {
-  pinMode(HALL_PIN, INPUT);             // pull-up dışarıda (R1)
   pinMode(PWM_PIN, OUTPUT);
-  attachInterrupt(digitalPinToInterrupt(HALL_PIN), hallKesme, FALLING);
+  analogWrite(PWM_PIN, 0);              // motor kapalı başlar
   Serial.begin(115200);
+  sonKontrol = micros();
 }
 
 void loop() {
-  if (!yeniOlcum) return;
-  noInterrupts(); unsigned long T = periyot; yeniOlcum = false; interrupts();
+  int v = analogRead(HALL_PIN);         // 0–1023, bir okuma ≈ 112 µs
+  unsigned long simdi = micros();
 
-  float rpm   = 60000000.0 / T;         // tur başına 1 darbe
-  int   hedef = analogRead(POT_PIN) + 200;
+  if (miknatisVar &amp;&amp; v &gt; tepe) tepe = v;
+
+  if (!miknatisVar &amp;&amp; v &gt;= ESIK_UST) {         // eşik yukarı geçildi: yeni tur
+    miknatisVar = true;
+    unsigned long T = simdi - sonGecis;
+    if (ilkGecis) {                            // önceki geçiş yok: yalnızca kaydet
+      ilkGecis = false;
+      sonGecis = simdi;
+    } else if (T &gt;= MIN_PERIYOT) {             // geçerli tur
+      sonGecis = simdi;
+      kontrol(T, simdi);
+    }
+    tepe = v;
+  }
+  else if (miknatisVar &amp;&amp; v &lt;= ESIK_ALT) {     // mıknatıs uzaklaştı (sayılmaz)
+    miknatisVar = false;
+  }
+
+  if (simdi - sonGecis &gt; ZAMAN_ASIMI &amp;&amp; simdi - sonKontrol &gt; ZAMAN_ASIMI) {
+    // motor duruyor ya da 120 RPM'den yavaş: kalkış rampası
+    pwm = min(pwm + KALKIS_ADIM, 255);
+    integ = pwm;
+    analogWrite(PWM_PIN, pwm);
+    ilkGecis = true;
+    sonKontrol = simdi;
+    Serial.print("Gecis yok  A1="); Serial.print(v);
+    Serial.print("  PWM=");         Serial.println(pwm);
+  }
+}
+
+void kontrol(unsigned long T, unsigned long simdi) {
+  int   hedef = analogRead(POT_PIN) + 200;    // 200–1223 RPM
+  float rpm   = 60000000.0 / T;               // tur başına 1 geçiş
+  float dt    = min(T / 1e6, DT_MAX);
   float hata  = hedef - rpm;
+  integ = constrain(integ + KI * hata * dt, 0, 255);   // anti-windup
+  pwm   = constrain(KP * hata + integ, 0, 255);
+  analogWrite(PWM_PIN, pwm);
+  sonKontrol = simdi;
 
-  integ += KI * hata * (T / 1e6);
-  integ  = constrain(integ, 0, 255);
-  int pwm = constrain(KP * hata + integ, 0, 255);
-  analogWrite(PWM_PIN, pwm);            // D9: 490 Hz PWM
-
-  Serial.print("T="); Serial.print(T / 1000.0, 1);
+  Serial.print("T=");        Serial.print(T / 1000.0, 1);
   Serial.print(" ms  RPM="); Serial.print(rpm, 0);
-  Serial.print("  Hedef="); Serial.print(hedef);
-  Serial.print("  PWM="); Serial.println(pwm);
+  Serial.print("  Hedef=");  Serial.print(hedef);
+  Serial.print("  PWM=");    Serial.print(pwm);
+  Serial.print("  Tepe=");   Serial.println(tepe);   // önceki geçişin tepe A1 değeri
 }</pre>
       </details>
     </div>
@@ -460,30 +499,30 @@ void loop() {
               <p>Ancak motorun içi bir bobindir ve bobindeki akım bir anda sıfırlanamaz. Akım D1 diyotu üzerinden motorun + ucuna geri dönerek küçük bir döngü oluşturur ve yavaşça azalır (mor noktalar). D1 olmasaydı bu akım MOSFET üzerinde yüzlerce voltluk bir gerilim sıçraması yaratır ve onu bozabilirdi.</p>
               <p>D9 saniyede 490 kez HIGH ve LOW olur; bir periyot 1 / 490 = 2.04 ms'dir. Bu periyot hiç değişmez. Değişen, HIGH süresinin periyoda oranıdır: buna <b>görev oranı</b> denir. <code>analogWrite(9, 89)</code> yazıldığında HIGH süresi 89 / 255 = %35 olur.</p>
               <p>Motor bu hızlı açılıp kapanmayı tek tek hissetmez, ortalamasını hisseder: ortalama gerilim ≈ görev oranı × 12 V. Görev oranı arttıkça HIGH süresi uzar, motor daha uzun süre 12 V görür ve hızlanır; azaldıkça yavaşlar. Simülasyonda PWM izlenebilsin diye çok yavaşlatıldı.</p></div></div></li>
-            <li><b>3</b><div><strong>Mıknatıs sensöre yaklaşıyor</strong><span class="sum">D2 = HIGH · sensör çıkışı serbest</span><div class="more">
-              <p>Motor milindeki diskte bir N (kırmızı) ve bir S (mavi) kutbu vardır. Disk milde döner; A3144 sensörü ise sabit bir braket üzerindedir ve dönmez.</p>
-              <p>S kutbu sensöre yaklaştıkça sensörün bulunduğu noktadaki manyetik alan (B) artar. Alan henüz açma eşiğinin (B_OP = 35 mT) altında olduğu için sensörün çıkış transistörü kapalıdır. A3144 açık kollektör çıkışlıdır: transistör kapalıyken OUT ucu hiçbir yere bağlı değildir.</p>
-              <p>Boşta kalan bu ucu 10 kΩ'luk R1 direnci 5 V'a çeker, bu yüzden Arduino D2 pininde HIGH (≈ 5 V) okur. R1'den akım akmaz, çünkü akımın devam edeceği bir yol yoktur. Sensörün kendisi ise 5 V hattından birkaç mA çekerek çalışır (yeşil noktalar).</p></div></div></li>
-            <li><b>4</b><div><strong>S kutbu eşiği geçti: düşen kenar</strong><span class="sum">D2: HIGH → LOW · kesme tetiklenir</span><div class="more">
-              <p>Alan 35 mT'yi geçtiği anda sensörün içinde sırasıyla şunlar olur: Hall elemanında alanla orantılı, çok küçük bir Hall gerilimi oluşur; iç yükselteç bunu büyütür; Schmitt tetikleyici eşiğin aşıldığını algılar ve çıkış transistörünü iletime sokar.</p>
-              <p>İletime geçen transistör OUT ucunu GND'ye bağlar. Artık R1 üzerinden 5 V'tan GND'ye küçük bir akım akar (pembe noktalar) ve D2'deki gerilim 5 V'tan yaklaşık 0.2 V'a düşer. HIGH'dan LOW'a olan bu geçişe <b>düşen kenar</b> denir. Diskte tek S kutbu olduğu için bu kenar her turda yalnızca bir kez oluşur.</p>
-              <p>Arduino D2'yi sürekli kontrol etmez. <code>setup()</code> içinde <code>attachInterrupt(…, hallKesme, FALLING)</code> ile donanıma “düşen kenar olursa haber ver” denmiştir. Kenar gelince işlemci o an yaptığı işi bırakır ve <code>hallKesme()</code> fonksiyonuna atlar.</p></div></div></li>
-            <li><b>5</b><div><strong>Kesme: tur süresi T ölçülür</strong><span class="sum">T = şimdiki kenar − önceki kenar</span><div class="more">
-              <p><code>hallKesme()</code> önce <code>micros()</code> ile Arduino açıldığından beri geçen süreyi mikrosaniye cinsinden okur. Bir önceki düşen kenarın zamanı <code>sonKenar</code> değişkeninde saklıdır.</p>
-              <p>İkisinin farkı T, mıknatısın tam bir tur atması için geçen süredir. Ardından şimdiki zaman yeni <code>sonKenar</code> olarak saklanır ve <code>yeniOlcum</code> bayrağı <code>true</code> yapılır.</p>
-              <p>Kesme fonksiyonu bilerek kısa tutulur (birkaç mikrosaniye). Uzun hesaplar <code>loop()</code> içinde yapılır ki işlemci bir sonraki kenarı kaçırmasın. Bu değişkenler hem kesmede hem <code>loop()</code>'ta kullanıldığı için <code>volatile</code> tanımlanmıştır. Bu adımda hiçbir kabloda yeni bir akım yoktur; her şey Arduino'nun içinde olur.</p></div></div></li>
+            <li><b>3</b><div><strong>Mıknatıs sensöre yaklaşıyor</strong><span class="sum">OUT 2,5 V’tan yükseliyor · A1 &lt; 612</span><div class="more">
+              <p>Motor milindeki diskte bir N (kırmızı) ve bir S (mavi) kutbu vardır. Disk milde döner; SS49E sensörü ise sabit bir braket üzerindedir ve dönmez.</p>
+              <p>SS49E analog bir sensördür: çıkış gerilimi alanla orantılıdır. Alan yokken OUT ≈ 2,5 V'tur; S kutbu yaklaştıkça her 1 mT için yaklaşık 14 mV yükselir (N kutbu ise düşürür). Bu gerilim R1 (1 kΩ) üzerinden Arduino'nun A1 girişine gider; C3 (100 nF) ile birlikte hızlı gürültüyü süzer (sarı noktalar).</p>
+              <p>Arduino <code>loop()</code> içinde A1'i sürekli okur (<code>analogRead</code>, ≈ 0,12 ms). Alan henüz 35 mT'nin altındayken okunan değer 612'den küçüktür, yazılım beklemeye devam eder. Sensör 5 V hattından birkaç mA çekerek çalışır (yeşil noktalar).</p></div></div></li>
+            <li><b>4</b><div><strong>Gerilim eşiği geçti: yeni tur</strong><span class="sum">A1 ≥ 612 (≈ 2,99 V ≈ 35 mT)</span><div class="more">
+              <p>S kutbu sensörün önüne gelince alan 35 mT'yi geçer: OUT = 2,5 + 0,014 × 35 ≈ 2,99 V olur. Arduino'nun ADC'si bunu 2,99 / 5 × 1024 ≈ 612 olarak okur.</p>
+              <p>Kodda <code>if (!miknatisVar &amp;&amp; v &gt;= ESIK_UST)</code> koşulu sağlanır: <code>miknatisVar = true</code> yapılır ve bu an “yeni tur” kabul edilir. Diskte tek S kutbu olduğu için bu geçiş her turda bir kez olur.</p>
+              <p>Dijital sensörden farkı: eşik kararını sensör değil yazılım verir. Analog pin kesme üretmediği için Arduino geçişi kesmeyle değil, A1'i sürekli okuyarak yakalar.</p></div></div></li>
+            <li><b>5</b><div><strong>Tur süresi T ölçülür</strong><span class="sum">T = şimdiki geçiş − önceki geçiş</span><div class="more">
+              <p>Eşik geçildiği anda <code>micros()</code> okunur. Bir önceki geçişin zamanı <code>sonGecis</code> değişkeninde saklıdır.</p>
+              <p>İkisinin farkı T, mıknatısın tam bir tur atması için geçen süredir. Ardından şimdiki zaman yeni <code>sonGecis</code> olur ve <code>kontrol(T)</code> çağrılır.</p>
+              <p>Zaman, A1 okumaları arasında (≈ 0,12 ms) yakalanır; 600 RPM'de bir tur 100 ms olduğundan hata en fazla ≈ %0,12'dir. Bu adımda kablolarda yeni bir akım yoktur; her şey Arduino'nun içinde olur.</p></div></div></li>
             <li><b>6</b><div><strong>Hız hesabı: RPM = 60 / T</strong><span class="sum">kodda: 60 000 000 / T(µs)</span><div class="more">
-              <p><code>loop()</code> bayrağı görür, kesmeleri bir anlığına kapatıp T'yi güvenle kopyalar. Böylece çok baytlı değer okunurken yeni bir kesme gelip değeri yarıda değiştiremez.</p>
+              <p><code>kontrol(T)</code> fonksiyonu T'yi hıza çevirir. Kesme kullanılmadığı için değişkenleri korumaya (<code>noInterrupts</code>) gerek yoktur; her şey <code>loop()</code> içinde sırayla olur.</p>
               <p>Bir tur T saniye sürüyorsa motor saniyede 1/T tur, dakikada 60/T tur atar. T mikrosaniye cinsinden tutulduğu için kodda formül <code>60000000.0 / T</code> olarak yazılır. Devir başına bir darbe olduğu için ayrıca bölmeye gerek yoktur; diskte 2 S kutbu olsaydı sonuç 2'ye bölünürdü.</p>
               <p>Bu periyot yöntemi her turda yeni bir hız değeri verir. 1 saniye boyunca darbe saymaktan çok daha hızlı tepki verdiği için hız kontrolüne uygundur.</p></div></div></li>
             <li><b>7</b><div><strong>Hedefle karşılaştır, yeni PWM'i hesapla</strong><span class="sum">A0 okunur → PI kontrol → analogWrite(9, pwm)</span><div class="more">
               <p>Arduino potansiyometreyi <code>analogRead(A0)</code> ile okur. Potansiyometrenin orta ucu 0–5 V arasında bir gerilim verir (yeşil noktalar); Arduino'nun ADC'si bunu 0–1023 arası bir sayıya çevirir. Kodda hedef = A0 + 200 RPM alınır.</p>
               <p>Hata = hedef − ölçülen. Hata pozitifse motor hedeften yavaştır, negatifse hızlıdır. PI kontrolcü iki parçadan oluşur: <b>P</b> (orantısal) kısmı hatanın o anki büyüklüğüne göre hemen tepki verir; <b>I</b> (integral) kısmı hata sürdükçe her turda birikir ve motoru sonunda tam hedefe oturtur.</p>
               <p>Toplam 0–255 aralığına sınırlanır ve <code>analogWrite(9, pwm)</code> ile D9'a yazılır. Yeni değer bir sonraki PWM periyodundan itibaren geçerlidir. Etkisini bir sonraki turun 1. ve 2. adımında görürsünüz: HIGH süresi uzar ya da kısalır.</p></div></div></li>
-            <li><b>8</b><div><strong>S kutbu geçiyor, sonra D2 yeniden HIGH</strong><span class="sum">D2: LOW → HIGH · bu kenar sayılmaz</span><div class="more">
-              <p>S kutbu sensörün önünden geçerken alan eşiğin üstünde kalır, D2 de LOW kalır. Bu sürede R1 üzerinden yaklaşık 5 V / 10 kΩ = 0.5 mA akım, sensörün çıkış transistörü üzerinden GND'ye akar (pembe noktalar).</p>
-              <p>Disk döndükçe S kutbu uzaklaşır ve alan azalır. Alan bırakma eşiğinin (B_RP = 25 mT) altına inince sensör çıkış transistörünü kapatır; R1 D2'yi yeniden 5 V'a çeker ve D2 HIGH olur.</p>
-              <p>İki eşik arasındaki 10 mT fark (histerezis), alan eşik sınırında titrerken tek tur yerine birden fazla darbe sayılmasını önler. Bu yükselen kenar sayılmaz, çünkü kesme yalnızca düşen kenara (<code>FALLING</code>) ayarlıdır. Disk dönmeye devam eder ve bir sonraki turda döngü 1. adımdan (PWM) yeniden başlar.</p></div></div></li>
+            <li><b>8</b><div><strong>Mıknatıs uzaklaşıyor, A1 alt eşiğin altına iniyor</strong><span class="sum">A1 ≤ 583 · bu geçiş sayılmaz</span><div class="more">
+              <p>S kutbu sensörün önünden geçerken alan 35 mT'nin üstünde kalır; A1 de 612'nin üstündedir ve <code>miknatisVar</code> true kalır.</p>
+              <p>Disk döndükçe S kutbu uzaklaşır, alan ve OUT gerilimi azalır. Alan 25 mT'nin altına inince OUT ≈ 2,85 V, A1 ≈ 583 olur ve kod <code>miknatisVar = false</code> yapar. Bu geçiş tur olarak sayılmaz.</p>
+              <p>İki eşik arasındaki fark (612 ile 583, yani histerezis), gerilim eşik sınırında gürültüyle titrerken tek tur yerine birden fazla tur sayılmasını önler. Disk dönmeye devam eder ve bir sonraki turda döngü 1. adımdan (PWM) yeniden başlar.</p></div></div></li>
           </ol>
           <div class="detail" id="sDetail" style="margin-top:10px">—</div>
           <div class="exbar"><b id="sExBar"></b></div><div class="exnote" id="sExNote"></div>
@@ -499,14 +538,14 @@ void loop() {
             <div><label>Görev oranı</label><output id="vDuty">0 %</output></div>
             <div><label>Motora ort. gerilim</label><output id="vVolt">0 V</output></div>
             <div><label>Hata (hedef − ölçülen)</label><output id="vErr">—</output></div>
-            <div><label>D2 (sensör)</label><output id="vD2">HIGH</output></div>
+            <div><label>A1 (sensör)</label><output id="vD2">2.50 V · 512</output></div>
             <div><label>Son periyot T</label><output id="vT">—</output></div>
           </div>
         </div>
         <div class="card">
-          <h3>Sinyaller (yavaş çekim) <em>D2 · D9</em></h3>
+          <h3>Sinyaller (yavaş çekim) <em>A1 · D9</em></h3>
           <canvas class="sc" id="cScope"></canvas>
-          <div class="wirekey" style="font-size:12px;margin-top:6px"><span style="--c:#c99a00">D2 sensör (düşen kenar = 1 tur)</span><span style="--c:#f07f1a">D9 PWM (gösterim yavaşlatıldı)</span></div>
+          <div class="wirekey" style="font-size:12px;margin-top:6px"><span style="--c:#c99a00">A1 sensör gerilimi (kesikli: 612 eşiği)</span><span style="--c:#f07f1a">D9 PWM (gösterim yavaşlatıldı)</span></div>
         </div>
         <div class="card">
           <h3>Tur tur hız <em>ölçülen · hedef</em></h3>
@@ -520,7 +559,7 @@ void loop() {
           <span class="dot" style="--c:#14b8e6">Motor akımı (D9 HIGH)</span>
           <span class="dot" style="--c:#a05cf0">Diyot akımı (D9 LOW)</span>
           <span class="dot" style="--c:#22c55e">5 V besleme</span>
-          <span class="dot" style="--c:#ff4fb8">Pull-up akımı (D2 LOW)</span>
+          <span class="dot" style="--c:#ffd23f">Sensör sinyali (OUT → R1 → A1)</span>
           <span class="dot" style="--c:#ffffff;border:1px solid #999">Kapı sinyali</span>
         </div>
       </div>
@@ -547,10 +586,11 @@ const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* =========================================================
    1) SİMÜLASYON ÇEKİRDEĞİ — tek ortak simülasyon zamanı
-   motor açısı → sensördeki B → dijital çıkış → RPM → PWM
+   motor açısı → sensördeki B → analog çıkış → yazılım eşiği → RPM → PWM
    ========================================================= */
 const MOTOR={RPMMAX:2000,D0:0.12,EXP:0.9,TAU:0.4,VS:12};   // DC motor + yük modeli (birinci derece)
-const HALL={B0:60,BOP:35,BRP:25};                          // sensör noktasındaki tepe alan, eşikler (mT)
+const HALL={B0:60,BOP:35,BRP:25};
+const VOUT=b=>clamp(2.5+0.014*b,0.86,4.21), ADC=b=>Math.min(1023,Math.floor(VOUT(b)/5*1024)); // SS49E çıkışı ve Arduino ADC                          // sensör noktasındaki tepe alan, eşikler (mT)
 const CTRL={KP:0.00015,KI:0.0006,DT:0.01};                 // PI hız kontrolcüsü
 const PPR=1;                                               // devir başına yükselen kenar
 function rpmSS(D){ if(D<=MOTOR.D0) return 0; return MOTOR.RPMMAX*Math.pow((D-MOTOR.D0)/(1-MOTOR.D0),MOTOR.EXP); }
@@ -908,12 +948,12 @@ function buildLabels(){
   label('sensorL','Hall Effect sensörü',V(0.14,0.98,2.82),'g d');
   label('vcc','VCC · besleme',()=>R.legs[0].localToWorld(tmpV.set(0,-0.05,0)),'pin l');
   label('gnd','GND · toprak',()=>R.legs[1].localToWorld(tmpV.set(0,0.12,0)),'pin');
-  label('out','OUT · sinyal çıkışı',()=>R.legs[2].localToWorld(tmpV.set(0,-0.12,0)),'pin d');
+  label('out','OUT · analog gerilim',()=>R.legs[2].localToWorld(tmpV.set(0,-0.12,0)),'pin d');
   label('fixedSensor','Sabit Hall sensörü<span class="sub">gövdeye bağlı, dönmez</span>',V(0.14,1.0,2.82),'g');
   label('rotMagnet','Dönen mıknatıs',V(-0.6,-0.45,2.9),'l d');
-  label('outWire','OUT sinyali → MCU',()=>R.wOut.c.getPointAt(0.55),'a');
-  label('mcu','Mikrodenetleyici (MCU)<span class="sub">kenar sayar · RPM hesaplar · PWM üretir</span>',V(4.0,1.68,1.05));
-  label('driver','Motor sürücüsü (H-köprüsü)<span class="sub">PWM’e göre 12 V’u anahtarlar</span>',V(4.0,-1.48,1.05),'d');
+  label('outWire','OUT (analog) → A1',()=>R.wOut.c.getPointAt(0.55),'a');
+  label('mcu','Mikrodenetleyici (MCU)<span class="sub">A1’i okur · eşik · RPM hesaplar · PWM üretir</span>',V(4.0,1.68,1.05));
+  label('driver','Motor sürücüsü (MOSFET)<span class="sub">PWM’e göre 12 V’u anahtarlar</span>',V(4.0,-1.48,1.05),'d');
   label('psu','12 V DC besleme',V(6.15,-0.47,0.9));
   label('pwmWire','PWM',V(4.3,0.1,1.3),'a');
   label('power','Motor gerilimi',()=>R.wM1.c.getPointAt(0.45),'a l');
@@ -992,9 +1032,9 @@ const SCENES=[
      [19.5,'Elektronlar bir kenarda birikir; karşı kenar pozitif kalır. İki kenar arasında yük ayrışması oluşur.'],
      [23.0,'Bu etki, Hall gerilimi adı verilen elektriksel bir gerilim oluşturur.'],
      [26.0,'Biriken yüklerin elektrik alanı manyetik kuvveti dengeler; elektronlar yeniden düz ilerler, V_H sabitlenir.'],
-     [29.5,'Dijital Hall sensörü: Alan açma eşiğini (B_OP) geçince çıkış 1 olur.'],
-     [35.0,'Alan bırakma eşiğinin (B_RP) altına inince çıkış yeniden 0 olur. Sağdaki grafikleri izleyin.'],
-     [40.0,'Gerçek sensörlerde çıkış polaritesi ve algılama davranışı kullanılan modele bağlıdır.']],
+     [29.5,'Analog Hall sensörü: çıkış gerilimi alanla orantılıdır. Alan yokken 2,5 V; S kutbu yaklaştıkça yükselir.'],
+     [35.0,'Arduino bu gerilimi A1’den okur: 612’yi (≈ 35 mT) geçince yeni tur sayar, 583’ün altına inince bırakır. Sağdaki grafikleri izleyin.'],
+     [40.0,'Eşik kararını sensör değil yazılım verir; duyarlılık ve eşikler kullanılan sensöre göre ayarlanır.']],
    labels:t=>{if(t<6)return t>3.0?['vcc','gnd','out','sensorL']:['sensorL'];
      const a=['plate','current','electrons'];if(t>13)a.push('bfield','testMag');if(t>16.5)a.push('force');if(t>19.5)a.push('neg','pos');if(t>23)a.push('vh');return a;},
    panel:t=>t>28?['secChain','secB','secO']:[],
@@ -1004,17 +1044,17 @@ const SCENES=[
    enter(){}, script(t){ scripted(()=>{S.mode='manual';S.rpmCmd=t<5?30:lerp(30,180,smooth(5,11,t));}); },
    params:t=>({housing:0.35,magnet:1,sensor:1,field:0.5,mcu:1,sys:0,sig:1,shift:0.12,lights:1}),
    cam(t){const tgt=V(2.0,0.75,1.9);const a=smooth(0,12,t);return {pos:V(lerp(4.6,3.6,a),lerp(3.0,2.4,a),lerp(10.2,8.8,a)),tgt};},
-   caps:[[0.8,'Rotor döndükçe Hall sensörü elektriksel sinyal üretir.'],[6.0,'Dönüş hızı arttıkça sinyallerin frekansı artar.']],
+   caps:[[0.8,'Rotor döndükçe sensörün çıkış gerilimi dalga gibi yükselip alçalır.'],[6.0,'Dönüş hızı arttıkça sinyallerin frekansı artar.']],
    labels:()=>['fixedSensor','rotMagnet','outWire','mcu'],
    panel:()=>['secB','secO'],
-   note:()=>'<b>Sensör sabittir</b>, rotorla birlikte dönmez. Geometri: her tam devirde S kutbu sensörün önünden bir kez geçer → devir başına <b>1 yükselen kenar</b>.',
+   note:()=>'<b>Sensör sabittir</b>, rotorla birlikte dönmez. Geometri: her tam devirde S kutbu sensörün önünden bir kez geçer → devir başına <b>1 eşik geçişi</b> (A1 ≥ 612).',
    bWin:4, oWin:4 },
  { name:'RPM', title:'Motor hızının RPM olarak hesaplanması', dur:15,
    enter(){ S.gateStart=S.t; S.gateCount=0; S.gateLast=null; },
    script(t){ scripted(()=>{S.mode='manual';S.rpmCmd=t<5?600:t<10?900:1200;}); },
    params:t=>({housing:0.35,magnet:1,sensor:1,field:0.32,mcu:1,sys:0,sig:1,shift:0.13,lights:1}),
    cam(t){const tgt=V(2.1,0.5,1.5);const a=smooth(0,15,t);return {pos:V(lerp(3.4,2.6,a),lerp(2.8,2.3,a),lerp(10.6,9.6,a)),tgt};},
-   caps:[[0.6,'Hall sensöründen gelen sinyaller sayılarak motorun dönüş hızı hesaplanır.'],[5.0,'Motor hızlandı: 1 saniyede sayılan yükselen kenar sayısı arttı.'],[10.0,'Daha yüksek hız → daha sık darbe → daha büyük RPM.']],
+   caps:[[0.6,'Hall sensöründen gelen sinyaller sayılarak motorun dönüş hızı hesaplanır.'],[5.0,'Motor hızlandı: 1 saniyede sayılan eşik geçişi sayısı arttı.'],[10.0,'Daha yüksek hız → daha sık darbe → daha büyük RPM.']],
    labels:()=>['fixedSensor','outWire','mcu'],
    panel:()=>['secO','secCalc'],
    note:()=>'Yüksek hızda görüntü kare hızı dönüşü yakalayamaz; yanıltıcı “geri dönme” etkisini önlemek için <b>hareket bulanıklığı</b> uygulanır. Ayrıntı için animasyon hızını düşürün: tüm grafikler aynı simülasyon zamanına bağlıdır.',
@@ -1103,26 +1143,30 @@ function drawB(cv,win){
 }
 function drawO(cv,win,gate){
   const {c,w,h}=prep(cv),L=36,Rm=6,T=12,Bm=18,pw=w-L-Rm,ph=h-T-Bm,t1=S.t,t0=t1-win;
-  const X=t=>L+(t-t0)/win*pw, Y=o=>T+ph-(o*0.78+0.08)*ph;
+  const vMin=1.5,vMax=3.6,X=t=>L+(t-t0)/win*pw, Y=v=>T+ph-(clamp(v,vMin,vMax)-vMin)/(vMax-vMin)*ph;
   if(gate){const gs=Math.max(S.gateStart,t0);c.fillStyle='rgba(79,209,255,.11)';c.fillRect(X(gs),T,X(t1)-X(gs),ph);
     const ps=S.gateStart-1; if(ps+1>t0){c.strokeStyle='rgba(61,255,143,.55)';c.setLineDash([3,3]);c.strokeRect(X(Math.max(ps,t0)),T+0.5,X(ps+1)-X(Math.max(ps,t0)),ph-1);c.setLineDash([]);}
   }
   frameAxes(c,w,h,t0,t1,L,T,pw,ph);
-  c.fillStyle=CS.txt;c.textAlign='right';c.font='10px "JetBrains Mono",monospace';c.fillText('1',L-6,Y(1)+3);c.fillText('0',L-6,Y(0)+3);
-  c.strokeStyle=CS.g;c.lineWidth=2;c.shadowColor=CS.g;c.shadowBlur=6;c.beginPath();let f=true,prev=0;
-  hEach(t0,(t,b,o)=>{const x=X(t);if(f){c.moveTo(x,Y(o));f=false;}else if(o!==prev){c.lineTo(x,Y(prev));c.lineTo(x,Y(o));}prev=o;});
-  if(!f)c.lineTo(X(t1),Y(prev));c.stroke();c.shadowBlur=0;
-  // yükselen kenar işaretleri
-  c.fillStyle=CS.g;let n=0;
-  for(let k=0;k<eCount;k++){const te=eT[(eI-1-k+EN)%EN];if(te<t0)break;const x=X(te);c.beginPath();c.moveTo(x,T-1);c.lineTo(x-3.5,T-7);c.lineTo(x+3.5,T-7);c.fill();
-    if(gate&&te>=S.gateStart){n++;}}
+  c.fillStyle=CS.txt;c.textAlign='right';c.font='10px "JetBrains Mono",monospace';
+  for(const v of [2.0,2.5,3.0,3.5]) c.fillText(v.toFixed(1),L-5,Y(v)+3);
+  c.strokeStyle=CS.axis;c.beginPath();c.moveTo(L,Y(2.5));c.lineTo(L+pw,Y(2.5));c.stroke();
+  c.setLineDash([4,3]);c.strokeStyle=CS.g;c.beginPath();c.moveTo(L,Y(VOUT(HALL.BOP)));c.lineTo(L+pw,Y(VOUT(HALL.BOP)));c.stroke();
+  c.strokeStyle=CS.a;c.beginPath();c.moveTo(L,Y(VOUT(HALL.BRP)));c.lineTo(L+pw,Y(VOUT(HALL.BRP)));c.stroke();c.setLineDash([]);
+  c.strokeStyle=CS.g;c.lineWidth=2;c.shadowColor=CS.g;c.shadowBlur=6;c.beginPath();let f=true;
+  hEach(t0,(t,b)=>{const x=X(t),y=Y(VOUT(b));if(f){c.moveTo(x,y);f=false;}else c.lineTo(x,y);});
+  c.stroke();c.shadowBlur=0;c.lineWidth=1;
+  // yazılımın yakaladığı eşik geçişleri
+  c.fillStyle=CS.g;
+  for(let k=0;k<eCount;k++){const te=eT[(eI-1-k+EN)%EN];if(te<t0)break;const x=X(te);c.beginPath();c.moveTo(x,T-1);c.lineTo(x-3.5,T-7);c.lineTo(x+3.5,T-7);c.fill();}
+  c.save();c.translate(10,T+ph/2);c.rotate(-Math.PI/2);c.textAlign='center';c.fillStyle=CS.txt;c.fillText('OUT (V)',0,0);c.restore();
 }
 function drawPWM(cv){
   const {c,w,h}=prep(cv),L=36,Rm=6,T=8,Bm=16,pw=w-L-Rm,ph=h-T-Bm,win=10*PWM_SHOW,t1=S.t,t0=t1-win;
   const X=t=>L+(t-t0)/win*pw, Y=v=>T+ph-(v/12*0.82+0.06)*ph;
   c.strokeStyle=CS.grid;c.lineWidth=1;for(const v of [0,6,12]){c.beginPath();c.moveTo(L,Y(v));c.lineTo(L+pw,Y(v));c.stroke();}
   c.fillStyle=CS.txt;c.textAlign='right';c.font='10px "JetBrains Mono",monospace';c.fillText('12 V',L-4,Y(12)+3);c.fillText('0 V',L-4,Y(0)+3);
-  c.textAlign='center';c.fillText('1 periyot = 50 µs (20 kHz) · gösterim yavaşlatıldı',L+pw/2,h-3);
+  c.textAlign='center';c.fillText('1 periyot ≈ 2,04 ms (490 Hz) · gösterim yavaşlatıldı',L+pw/2,h-3);
   const k0=Math.floor(t0/PWM_SHOW),k1=Math.floor(t1/PWM_SHOW);
   c.save();c.beginPath();c.rect(L,0,pw,h);c.clip();
   c.strokeStyle=CS.a;c.lineWidth=2;c.beginPath();c.moveTo(X(k0*PWM_SHOW),Y(0));
@@ -1266,16 +1310,18 @@ function updateUI(pv){
   setTxt($('#hTgt'),S.mode==='closed'?Math.round(S.target)+'':'—');
   if(!userOverride) setTxt($('#hMode'),S.mode==='closed'?'Kapalı çevrim (PI)':'Senaryo hızı (açık çevrim)');
   setTxt($('#bVal'),S.B.toFixed(0)+' mT');
-  setTxt($('#oVal'),'OUT = '+S.out);
+  setTxt($('#oVal'),VOUT(S.B).toFixed(2)+' V · A1 '+ADC(S.B));
   const f=S.rpm/60; setTxt($('#oFreq'),S.useLab?'':'f = '+f.toFixed(2)+' Hz = '+Math.round(S.rpm)+' RPM / 60');
   // zincir
   if(pv.includes('secChain')){
-    setTxt($('#chOut'),'OUT = '+S.out);
-    $('#nHall').classList.toggle('hot',S.B>5); $('#nAmp').classList.toggle('hot',S.B>5);
-    $('#nSch').classList.toggle('hot',!!S.out); $('#nOut').classList.toggle('hot',!!S.out);
+    setTxt($('#chOut'),'OUT = '+VOUT(S.B).toFixed(2)+' V');
+    const hotB=Math.abs(S.B)>5;
+    $('#nHall').classList.toggle('hot',hotB); $('#nAmp').classList.toggle('hot',hotB);
+    $('#nSch').classList.toggle('hot',hotB); $('#nOut').classList.toggle('hot',!!S.out);
     setTxt($('#nVh'),'B = '+S.B.toFixed(0)+' mT · V_H ∝ B');
-    setTxt($('#nSchS'),S.out?'B ≥ B_OP oldu → 1 (B_RP altına inene dek)':'B < B_OP → 0');
-    setTxt($('#nOutS'),S.out?'1 (algılandı)':'0');
+    setTxt($('#nAmpS'),'OUT = 2,5 + 0,014 × '+S.B.toFixed(0)+' = '+VOUT(S.B).toFixed(2)+' V');
+    setTxt($('#nSchS'),'A1 = '+VOUT(S.B).toFixed(2)+' / 5 × 1024 = '+ADC(S.B));
+    setTxt($('#nOutS'),S.out?'A1 ≥ 612 oldu → mıknatıs var (583 altına inene dek)':'A1 < 612 → bekleniyor');
   }
   // RPM hesabı
   if(pv.includes('secCalc')){
@@ -1334,7 +1380,7 @@ const H=(c,r)=>[cx(c),RY[r]];
 const AX=354.3, AY=560, S=5.54;
 const ap=(x,y)=>[AX+x*S,AY+y*S];
 const dig=n=>n<=7?64.4-n*2.54:64.4-7*2.54-4.06-(n-8)*2.54;
-const PIN={D2:ap(dig(2),2.54),D9:ap(dig(9),2.54),V5:ap(38.1,50.8),GND:ap(40.64,50.8),A0:ap(50.8,50.8)};
+const PIN={D2:ap(dig(2),2.54),D9:ap(dig(9),2.54),V5:ap(38.1,50.8),GND:ap(40.64,50.8),A0:ap(50.8,50.8),A1:ap(53.34,50.8)};
 const MOT={x:920,y:112};
 
 const C={red:'#d8322f',blk:'#25272b',yel:'#e9b500',org:'#f07f1a',grn:'#1a9b48'};
@@ -1346,7 +1392,7 @@ const WIRES=[
   {id:'ard_gnd',c:C.blk,pts:[PIN.GND,[PIN.GND[0],880],[236,880],[236,438],H(1,'bn')]},
   {id:'ard_a0',c:C.grn,pts:[PIN.A0,[PIN.A0[0],858],[1045,858],[1045,394],H(45,'i')]},
   {id:'ard_d9',c:C.org,pts:[PIN.D9,H(20,'e')]},
-  {id:'ard_d2',c:C.yel,pts:[PIN.D2,[PIN.D2[0],505],[cx(36),505],H(36,'j')]},
+  {id:'ard_a1',c:C.yel,pts:[PIN.A1,[PIN.A1[0],850],[cx(40),850],H(40,'j')]},
   {id:'j_src',c:C.blk,pts:[H(26,'a'),H(26,'tn')]},
   {id:'j_d1',c:C.red,pts:[H(29,'a'),H(29,'tp')]},
   {id:'mot_n',c:C.blk,pts:[[934,52],[934,16],[cx(25),16],H(25,'a')]},
@@ -1356,7 +1402,7 @@ const WIRES=[
   {id:'sen_o',c:C.yel,pts:[[864,132],[864,184],[cx(36),184],H(36,'f')]},
   {id:'j_s5v',c:C.red,pts:[H(34,'j'),H(34,'bp')]},
   {id:'j_sgnd',c:C.blk,pts:[H(35,'j'),H(35,'bn')]},
-  {id:'j_r1',c:C.red,pts:[H(40,'j'),H(40,'bp')]},
+  {id:'j_c3',c:C.blk,pts:[H(42,'j'),H(42,'bn')]},
   {id:'j_potg',c:C.blk,pts:[H(44,'j'),H(44,'bn')]},
   {id:'j_potv',c:C.red,pts:[H(46,'j'),H(46,'bp')]},
 ];
@@ -1436,7 +1482,7 @@ function uno(p){
   s+=T(44.5,11.2,'DIGITAL (PWM ~)',1.4,'middle',0,'#e9f6f7',600)+T(37,44.3,'POWER',1.3,'middle',0,'#e9f6f7',600)+T(57.2,44.3,'ANALOG IN',1.3,'middle',0,'#e9f6f7',600);
   s+=T(44,25.5,'UNO',7,'middle',0,'#ffffff',700).replace('<text','<text font-style="italic" letter-spacing=".4"');
   // kullanılan pinleri işaretle
-  for(const [x,y] of [[dig(2),2.54],[dig(9),2.54],[38.1,50.8],[40.64,50.8],[50.8,50.8]]) s+=`<rect x="${x-1.2}" y="${y-1.2}" width="2.4" height="2.4" fill="none" stroke="#ffd25a" stroke-width=".35"/>`;
+  for(const [x,y] of [[53.34,50.8],[dig(9),2.54],[38.1,50.8],[40.64,50.8],[50.8,50.8]]) s+=`<rect x="${x-1.2}" y="${y-1.2}" width="2.4" height="2.4" fill="none" stroke="#ffd25a" stroke-width=".35"/>`;
   s+=`<rect id="${p}mcuHi" x="30.4" y="33.2" width="37.4" height="10.2" rx="1" fill="none" stroke="#38f08c" stroke-width=".7" opacity="0"/>`;
   s+=`</g></g>`;
   return s;
@@ -1453,10 +1499,10 @@ const legEnds=pts=>pts.map(([x,y])=>`<circle cx="${x}" cy="${y}" r="2" fill="#7c
 const BR='#7a4a1e',BK='#111',OR='#f08a24',RD='#d32f2f',GD='#c9a227';
 function components(p){
   let s='';
-  // R2 220Ω (D9 → kapı), R3 10k (kapı pull-down), R1 10k (pull-up)
+  // R2 220Ω (D9 → kapı), R3 10k (kapı pull-down), R1 1k (sensör → A1 süzgeç)
   s+=resistor(cx(20),RY.b,cx(24),RY.b,[RD,RD,BR,GD]);
   s+=resistor(cx(24),RY.a,cx(24),RY.tn,[BR,BK,OR,GD]);
-  s+=resistor(cx(36),RY.h,cx(40),RY.h,[BR,BK,OR,GD]);
+  s+=resistor(cx(36),RY.h,cx(40),RY.h,[BR,BK,RD,GD]);
   // D1 1N4007
   const dx1=cx(25),dx2=cx(29),dy=RY.b;
   s+=`<line x1="${dx1}" y1="${dy}" x2="${dx2}" y2="${dy}" stroke="#9aa2ab" stroke-width="2"/><rect x="${dx1+14}" y="${dy-5}" width="28" height="10" rx="2" fill="#232428"/><rect x="${dx2-19}" y="${dy-5}" width="4" height="10" fill="#c9ced6"/>`+legEnds([[dx1,dy],[dx2,dy]]);
@@ -1469,6 +1515,9 @@ function components(p){
   // C1 100nF seramik
   s+=`<line x1="${cx(34)}" y1="${RY.g}" x2="${cx(34)+3}" y2="357" stroke="#9aa2ab" stroke-width="1.6"/><line x1="${cx(35)}" y1="${RY.g}" x2="${cx(35)-3}" y2="357" stroke="#9aa2ab" stroke-width="1.6"/>`;
   s+=`<ellipse cx="${(cx(34)+cx(35))/2}" cy="352" rx="9" ry="6.5" fill="#d9822b" stroke="#a65e18"/><text x="${(cx(34)+cx(35))/2}" y="354.5" font-size="6" text-anchor="middle" fill="#4a2a08" font-family="JetBrains Mono,monospace">104</text>`+legEnds([H(34,'g'),H(35,'g')]);
+  // C3 100nF seramik (R1 ile RC süzgeç: sütun 40 → sütun 42 → GND)
+  s+=`<line x1="${cx(40)}" y1="${RY.g}" x2="${cx(41)-4}" y2="357" stroke="#9aa2ab" stroke-width="1.6"/><line x1="${cx(42)}" y1="${RY.g}" x2="${cx(41)+4}" y2="357" stroke="#9aa2ab" stroke-width="1.6"/>`;
+  s+=`<ellipse cx="${cx(41)}" cy="352" rx="9" ry="6.5" fill="#d9822b" stroke="#a65e18"/><text x="${cx(41)}" y="354.5" font-size="6" text-anchor="middle" fill="#4a2a08" font-family="JetBrains Mono,monospace">104</text>`+legEnds([H(40,'g'),H(42,'g')]);
   // C2 100µF elektrolitik
   s+=`<line x1="${cx(4)}" y1="190" x2="${cx(4)}" y2="${RY.tp}" stroke="#9aa2ab" stroke-width="1.8"/><line x1="${cx(5)}" y1="190" x2="${cx(5)}" y2="${RY.tn}" stroke="#9aa2ab" stroke-width="1.8"/>`;
   s+=`<g filter="url(#${p}sh)"><circle cx="${(cx(4)+cx(5))/2}" cy="176" r="15" fill="#203a78" stroke="#132654"/></g><path d="M${(cx(4)+cx(5))/2+6} 162.3 A15 15 0 0 1 ${(cx(4)+cx(5))/2+6} 189.7" stroke="#c9d3e6" stroke-width="5" fill="none"/>`;
@@ -1490,10 +1539,10 @@ function components(p){
      `<text x="${MOT.x+25}" y="${MOT.y+6}" font-size="17" font-weight="700" fill="#fff" text-anchor="middle">S</text>`+
      `<text x="${MOT.x-25}" y="${MOT.y+6}" font-size="17" font-weight="700" fill="#fff" text-anchor="middle">N</text>`+
      `<circle cx="${MOT.x}" cy="${MOT.y}" r="9" fill="#c5cbd3" stroke="#8a929b"/><circle cx="${MOT.x}" cy="${MOT.y}" r="3.5" fill="#6f7780"/></g>`;
-  // U1 A3144 (sabit braket üzerinde)
+  // U1 SS49E analog Hall sensörü (sabit braket üzerinde)
   s+=`<rect x="838" y="92" width="34" height="8" rx="2" fill="#b7bec7"/>`;
   s+=`<circle id="${p}sensGlow" cx="857" cy="111" r="20" fill="#22c55e" opacity="0" filter="url(#${p}glow)"/>`;
-  s+=`<g filter="url(#${p}sh)"><path d="M846 100 H868 V124 H846 Q842 112 846 100Z" fill="#1d1f24"/></g><text x="857" y="114" font-size="5.5" text-anchor="middle" fill="#9aa2ab" font-family="JetBrains Mono,monospace">3144</text>`;
+  s+=`<g filter="url(#${p}sh)"><path d="M846 100 H868 V124 H846 Q842 112 846 100Z" fill="#1d1f24"/></g><text x="857" y="114" font-size="5.5" text-anchor="middle" fill="#9aa2ab" font-family="JetBrains Mono,monospace">49E</text>`;
   for(const x of [850,857,864]) s+=`<line x1="${x}" y1="124" x2="${x}" y2="132" stroke="#c9ced6" stroke-width="2"/>`;
   // 12 V güç kaynağı
   s+=`<g filter="url(#${p}sh)"><rect x="40" y="62" width="160" height="96" rx="8" fill="#2a2e35"/><rect x="40" y="62" width="30" height="96" rx="8" fill="#e2a72e"/><rect x="58" y="62" width="12" height="96" fill="#e2a72e"/></g>`;
@@ -1515,13 +1564,14 @@ function valueLabels(){
   s+=tag(cx(27)+4,RY.c+1,'D1 1N4007','start');
   s+=tag(cx(27)+4,RY.e+1,'Q1 IRLZ44N','start');
   s+=tag(cx(33)-2,RY.g+2,'C1 100nF','end');
-  s+=tag(cx(38),RY.i+3,'R1 10kΩ');
+  s+=tag(cx(38),RY.i+3,'R1 1kΩ');
+  s+=tag(cx(40)+2,322,'C3 100nF');
   s+=tag(cx(45),318,'RV1 10kΩ');
   s+=tag(386,178,'C2 100µF','start');
-  s+=tag(840,96,'U1 A3144','end');
+  s+=tag(840,96,'U1 SS49E','end');
   s+=tag(MOT.x,186,'M1 DC motor 12 V');
-  s+=tag(760,700,'A1 · Arduino Uno R3','start',{fs:12});
-  s+=tag(760,722,'USB ile beslenir (5 V)','start',{fs:10,fg:'#52617b'});
+  s+=tag(880,700,'A1 · Arduino Uno R3','start',{fs:12});
+  s+=tag(880,722,'USB ile beslenir (5 V)','start',{fs:10,fg:'#52617b'});
   return s;
 }
 
@@ -1531,7 +1581,7 @@ const FLOWS={
   free:{c:'#a05cf0',pts:[[934,52],[934,16],[cx(25),16],[cx(25),262],[cx(25),276],[cx(29),276],[cx(29),262],[cx(29),218],[cx(32),218],[cx(32),30],[906,30],[906,52],[906,72],[934,72],[934,52]]},
   gate:{c:'#ffffff',pts:[PIN.D9,[cx(20),318],[cx(20),276],[cx(24),276],[cx(24),294]]},
   logic:{c:'#22c55e',pts:[PIN.V5,[PIN.V5[0],866],[250,866],[250,452],[cx(34),452],[cx(34),408],[cx(34),352],[cx(34),160],[850,160],[850,124],[857,124],[857,172],[cx(35),172],[cx(35),352],[cx(35),438],[236,438],[236,880],[PIN.GND[0],880],PIN.GND]},
-  pull:{c:'#ff4fb8',pts:[[cx(40),452],[cx(40),408],[cx(40),380],[cx(36),380],[cx(36),352],[cx(36),184],[864,184],[864,124],[857,124],[857,172],[cx(35),172],[cx(35),352],[cx(35),438],[236,438],[236,880],[PIN.GND[0],880],PIN.GND]},
+  pull:{c:'#ffd23f',pts:[[864,124],[864,184],[cx(36),184],[cx(36),380],[cx(40),380],[cx(40),408],[cx(40),850],[PIN.A1[0],850],PIN.A1]},
   pot:{c:'#22c55e',pts:[[cx(46),452],[cx(46),408],[cx(46),380],[cx(46),372],[cx(44),372],[cx(44),380],[cx(44),408],[cx(44),438]]},
 };
 function overlays(p){
@@ -1541,10 +1591,10 @@ function overlays(p){
        `<path d="${d}" fill="none" stroke="${FLOWS[k].c}" stroke-width="4" stroke-linecap="round" stroke-dasharray="1 15" class="fi"/></g>`;}
   s+='</g>';
   s+=`<circle id="${p}pulse" r="7" fill="#ffe14d" stroke="#8a6d00" stroke-width="1.5" opacity="0"/>`;
-  s+=tag(PIN.D2[0]+10,538,'D2 = HIGH','start',{id:p+'chD2',fs:11});
+  s+=tag(cx(40)+12,600,'A1 = 2.50 V · 512','start',{id:p+'chD2',fs:11});
   s+=tag(PIN.D9[0]-10,538,'D9 = PWM 89','end',{id:p+'chD9',fs:11});
   s+=tag(PIN.A0[0]+14,886,'A0 = 400','start',{id:p+'chA0',fs:11});
-  s+=tag(760,140,'OUT = HIGH','end',{id:p+'chS',fs:11});
+  s+=tag(760,140,'OUT = 2.50 V','end',{id:p+'chS',fs:11});
   s+=tag(986,112,'600 RPM','start',{id:p+'chM',fs:11});
   s+=tag(AX+49.1*S,AY+30.2*S,'—','middle',{id:p+'chMCU',fs:11,bg:'#0c1a14',fg:'#38f08c',stroke:'#38f08c'});
   return s;
@@ -1566,6 +1616,7 @@ const MO={RPMMAX:2000,D0:0.12,EXP:0.9,TAU:0.15};
 const rpmSS=D=>D<=MO.D0?0:MO.RPMMAX*Math.pow((D-MO.D0)/(1-MO.D0),MO.EXP);
 const dutyFor=r=>r<=0?0:MO.D0+(1-MO.D0)*Math.pow(Math.min(1,r/MO.RPMMAX),1/MO.EXP);
 const HL={B0:60,BOP:35,BRP:25}, KP=0.0003, KI=0.0025;
+const VOUT=b=>clamp(2.5+0.014*b,0.86,4.21), ADC=b=>Math.min(1023,Math.floor(VOUT(b)/5*1024)); // SS49E + ADC
 const thEdge=Math.PI-Math.acos(HL.BOP/HL.B0);
 const Bat=a=>HL.B0*Math.cos(a-Math.PI);           // sensör 180° konumunda (solda)
 const PWMVIS=1.4;                                   // gösterimdeki PWM frekansı (Hz)
@@ -1628,7 +1679,7 @@ function advance(dt,rec){
     if(ev===1){paused=!!M.explain;break;}
     if(ev===3&&M.tour.includes(3)){M.tour=[];startEx([3]);paused=true;break;}
     if(ev===2&&M.relDetail){M.relDetail=false;startEx([8]);paused=true;break;}}
-  if(rec){M.scope.push({td:M.td,d2:M.out,d9:on?1:0});while(M.scope.length&&M.scope[0].td<M.td-16)M.scope.shift();}
+  if(rec){M.scope.push({td:M.td,d2:VOUT(M.B),d9:on?1:0});while(M.scope.length&&M.scope[0].td<M.td-16)M.scope.shift();}
   return paused;
 }
 function fastForward(){for(let k=0;k<6000;k++){if(advance(1/60,true))return;}}
@@ -1660,7 +1711,7 @@ function setTag(id,text,col){
   if(col) t.setAttribute('fill',col);
 }
 const flowEls={}; for(const k in FLOWS) flowEls[k]={g:g('fl_'+k),fo:g('fl_'+k).querySelector('.fo'),fi:g('fl_'+k).querySelector('.fi')};
-const d2Path=g('ard_d2').querySelector('.wc'), d2Len=d2Path.getTotalLength(), d9Path=g('ard_d9').querySelector('.wc');
+const d2Path=g('ard_a1').querySelector('.wc'), d2Len=d2Path.getTotalLength(), d9Path=g('ard_d9').querySelector('.wc');
 const discEl=g('disc'), knob=g('potKnob');
 
 /* ---------- grafikler ---------- */
@@ -1668,14 +1719,25 @@ function prep(cv){const r=cv.getBoundingClientRect();const w=Math.max(10,r.width
   if(cv.width!==w*d||cv.height!==h*d){cv.width=w*d;cv.height=h*d;}const c=cv.getContext('2d');c.setTransform(d,0,0,d,0,0);c.clearRect(0,0,w,h);return {c,w,h};}
 function drawScope(){
   const {c,w,h}=prep($('#cScope')),L=34,R=6,win=14,t1=M.td,t0=t1-win,X=t=>L+(t-t0)/win*(w-L-R);
-  const lanes=[{k:'d2',y0:10,col:'#c99a00',lab:'D2'},{k:'d9',y0:66,col:'#f07f1a',lab:'D9'}];
   c.font='10px "JetBrains Mono",monospace';
-  for(const ln of lanes){const hh=40,Y=v=>ln.y0+hh-(v?hh:0);
+  { // A1: sensörün analog gerilimi
+    const y0=6,hh=46,vMin=1.5,vMax=3.6,Y=v=>y0+hh-(clamp(v,vMin,vMax)-vMin)/(vMax-vMin)*hh;
+    c.strokeStyle='#e1e8f1';for(const v of [2,3]){c.beginPath();c.moveTo(L,Y(v));c.lineTo(w-R,Y(v));c.stroke();}
+    c.setLineDash([4,3]);c.strokeStyle='#12994a';c.beginPath();c.moveTo(L,Y(VOUT(HL.BOP)));c.lineTo(w-R,Y(VOUT(HL.BOP)));c.stroke();c.setLineDash([]);
+    c.fillStyle='#52617b';c.textAlign='right';c.fillText('A1',L-14,y0+hh/2+3);
+    c.font='9px "JetBrains Mono",monospace';c.fillText('3V',L-2,Y(3)+3);c.fillText('2V',L-2,Y(2)+3);c.font='10px "JetBrains Mono",monospace';
+    c.strokeStyle='#c99a00';c.lineWidth=2;c.beginPath();let first=true;
+    for(const s of M.scope){if(s.td<t0)continue;const x=X(s.td),y=Y(s.d2);if(first){c.moveTo(x,y);first=false;}else c.lineTo(x,y);}
+    c.stroke();c.lineWidth=1;
+  }
+  { // D9: PWM
+    const y0=66,hh=40,Y=v=>y0+hh-(v?hh:0);
     c.strokeStyle='#e1e8f1';c.beginPath();c.moveTo(L,Y(0));c.lineTo(w-R,Y(0));c.moveTo(L,Y(1));c.lineTo(w-R,Y(1));c.stroke();
-    c.fillStyle='#52617b';c.textAlign='right';c.fillText(ln.lab,L-14,ln.y0+hh/2+3);c.font='9px "JetBrains Mono",monospace';c.fillText('1',L-4,Y(1)+3);c.fillText('0',L-4,Y(0)+3);c.font='10px "JetBrains Mono",monospace';
-    c.strokeStyle=ln.col;c.lineWidth=2;c.beginPath();let first=true,pv=0;
-    for(const s of M.scope){if(s.td<t0)continue;const x=X(s.td),v=s[ln.k];if(first){c.moveTo(x,Y(v));first=false;}else if(v!==pv){c.lineTo(x,Y(pv));c.lineTo(x,Y(v));}pv=v;}
-    if(!first)c.lineTo(X(t1),Y(pv));c.stroke();c.lineWidth=1;}
+    c.fillStyle='#52617b';c.textAlign='right';c.fillText('D9',L-14,y0+hh/2+3);c.font='9px "JetBrains Mono",monospace';c.fillText('1',L-4,Y(1)+3);c.fillText('0',L-4,Y(0)+3);c.font='10px "JetBrains Mono",monospace';
+    c.strokeStyle='#f07f1a';c.lineWidth=2;c.beginPath();let first=true,pv=0;
+    for(const s of M.scope){if(s.td<t0)continue;const x=X(s.td),v=s.d9;if(first){c.moveTo(x,Y(v));first=false;}else if(v!==pv){c.lineTo(x,Y(pv));c.lineTo(x,Y(v));}pv=v;}
+    if(!first)c.lineTo(X(t1),Y(pv));c.stroke();c.lineWidth=1;
+  }
   c.fillStyle='#8b98ae';c.textAlign='right';c.fillText('zaman (yavaş çekim) →',w-R,h-2);
 }
 function drawTurns(){
@@ -1722,20 +1784,20 @@ function detailText(st){
     +R('Ortalama',`V<sub>ort</sub> = görev oranı × 12 V = ${duty.toFixed(3)} × 12 = <b>${(duty*12).toFixed(2)} V</b>`)
     +R('Şekil',pwmSvg(duty,'off'))
     +R('Değişim',prev);}
-  if(st===3) return R('Şu an',`Sensördeki alan B = <b>${Math.max(0,B).toFixed(1)} mT</b>; açma eşiğine (35 mT) <b>${Math.max(0,35-B).toFixed(1)} mT</b> kaldı.`)
-    +R('Devrede','OUT boşta → R1 (10 kΩ) D2\'yi 5 V\'a çeker. D2 ≈ <b>5 V (HIGH)</b>, R1 akımı = <b>0 mA</b>. Sensör 5 V hattından besleniyor <span style="color:#16a34a">(yeşil noktalar)</span>.')
-    +R('Kodda','<code>loop()</code> içinde <code>if (!yeniOlcum) return;</code> → yeni ölçüm bekleniyor.')
-    +(M.turn>0&&M.td-M.releaseT<3?R('Az önce','Sensör bıraktı, pull-up D2\'yi yeniden HIGH yaptı (8. adımın sonu).'):'');
-  if(!e) return R('Şu an','İlk düşen kenar bekleniyor.');
-  if(st===4) return R('Şu an','B = <b>35 mT ≥ B_OP</b> → sensörün çıkış transistörü iletime geçti.')
-    +R('Devrede','OUT → GND bağlandı. D2: <b>5 V → ≈ 0.2 V (LOW)</b>. R1 üzerinden ≈ <b>0.5 mA</b> akmaya başladı <span style="color:#d6339a">(pembe noktalar)</span>.')
-    +R('Kodda','<code>attachInterrupt(digitalPinToInterrupt(2), hallKesme, FALLING)</code> → <code>hallKesme()</code> çağrıldı.')
-    +R('Sinyal','Sarı noktanın D2 kablosu boyunca Arduino\'ya gitmesini izleyin.');
+  if(st===3) return R('Şu an',`Sensördeki alan B = <b>${B.toFixed(1)} mT</b>; üst eşiğe (35 mT) <b>${Math.max(0,35-B).toFixed(1)} mT</b> kaldı.`)
+    +R('Devrede',`OUT = 2,5 V + 0,014 × ${B.toFixed(1)} = <b>${VOUT(B).toFixed(2)} V</b> → R1 (1 kΩ) → A1 <span style="color:#b8860b">(sarı noktalar)</span>. Sensör 5 V hattından besleniyor <span style="color:#16a34a">(yeşil noktalar)</span>.`)
+    +R('Kodda',`<code>v = analogRead(A1)</code> = <b>${ADC(B)}</b> &lt; 612 → <code>miknatisVar</code> false, beklemeye devam.`)
+    +(M.turn>0&&M.td-M.releaseT<3?R('Az önce','A1 583’ün altına indi: yazılım “mıknatıs gitti” dedi (8. adımın sonu).'):'');
+  if(!e) return R('Şu an','İlk eşik geçişi bekleniyor.');
+  if(st===4) return R('Şu an','B ≥ 35 mT → OUT ≥ <b>2,99 V</b> → A1 ≥ <b>612</b>.')
+    +R('Devrede','Sensör çıkışı alanla birlikte yükseldi. R1 ve C3 hızlı gürültüyü süzer, A1 gerilimi izler <span style="color:#b8860b">(sarı noktalar)</span>.')
+    +R('Kodda','<code>if (!miknatisVar &amp;&amp; v &gt;= ESIK_UST)</code> → <code>miknatisVar = true</code>: yeni tur!')
+    +R('Not','Analog pin kesme üretmez: <code>loop()</code> A1’i ≈ 0,12 ms’de bir okur ve geçişi kendisi yakalar. Sarı nokta bilginin A1’e gidişini gösterir.');
   if(st===5) return R('Okunan',`<code>simdi = micros()</code> = <b>${usT(e.te)} µs</b>`)
-    +R('Önceki',`<code>sonKenar</code> = <b>${usT(e.prev)} µs</b>`)
+    +R('Önceki',`<code>sonGecis</code> = <b>${usT(e.prev)} µs</b>`)
     +R('Sonuç',`T = ${usT(e.te)} − ${usT(e.prev)} = <b>${us(e.T)} µs = ${(e.T*1000).toFixed(2)} ms</b>`)
-    +R('Kodda','<code>periyot = simdi - sonKenar; sonKenar = simdi; yeniOlcum = true;</code>')
-    +R('Kablolar','Bu adımda yeni bir akım yoktur; işlem Arduino\'nun içinde olur (işlemci vurgulu).');
+    +R('Kodda','<code>T = simdi - sonGecis; sonGecis = simdi; kontrol(T, simdi);</code>')
+    +R('Hassasiyet','Geçiş, A1 okumaları arasında (≈ 0,12 ms) yakalanır: 600 RPM’de hata ≤ %0,12.');
   if(st===6) return R('Saniyede',`1 / T = 1 / ${e.T.toFixed(5)} s = <b>${(1/e.T).toFixed(2)} tur/s</b>`)
     +R('Dakikada',`60 × ${(1/e.T).toFixed(2)} = <b>${e.meas.toFixed(1)} RPM</b>`)
     +R('Kodda',`<code>rpm = 60000000.0 / ${us(e.T)}</code> → <b>${e.meas.toFixed(0)} RPM</b>`)
@@ -1747,10 +1809,10 @@ function detailText(st){
     +R('P + I',`P = 0.077 × ${e.e.toFixed(1)} = <b>${e.P.toFixed(2)}</b> · I (birikmiş) = <b>${e.I.toFixed(1)}</b> → toplam ≈ <b>${(e.P+e.I).toFixed(2)}</b> → en yakın tam sayı`)
     +R('Çıkış',`<code>analogWrite(9, ${e.pwm})</code> · PWM <b>${e.old} → ${e.pwm}</b> (${d>0?'+':''}${d}) · görev oranı <b>%${(e.pwm/2.55).toFixed(1)}</b> → ortalama ≈ <b>${(e.pwm/255*12).toFixed(2)} V</b>`)
     +R('Etkisi',`Bir periyottaki HIGH süresi ${(e.old/255*ms).toFixed(2)} ms → <b>${(e.pwm/255*ms).toFixed(2)} ms</b>.`);}
-  if(st===8) return R('Şu an',`B = <b>${B.toFixed(1)} mT</b>; bırakma eşiği B_RP = 25 mT. ${M.out===0?'Alan hâlâ eşiğin üstünde → D2 LOW kalıyor.':'Alan 25 mT\'nin altına indi → sensör bıraktı.'}`)
-    +R('Devrede',M.out===0?'D2 ≈ <b>0.2 V (LOW)</b>, R1 → OUT → GND üzerinden ≈ <b>0.5 mA</b> akıyor <span style="color:#d6339a">(pembe)</span>.':'OUT yeniden boşta → R1 D2\'yi <b>5 V (HIGH)</b> yaptı, R1 akımı 0.')
-    +R('Kodda','Kesme yalnızca <code>FALLING</code> için ayarlı → bu yükselen kenar <b>sayılmaz</b>.')
-    +R('Sonra','Disk dönmeye devam eder; bir sonraki turda döngü 1. adımdan (PWM) başlar.');
+  if(st===8) return R('Şu an',`B = <b>${B.toFixed(1)} mT</b> → A1 = <b>${ADC(B)}</b>; alt eşik 583 (≈ 25 mT). ${M.out===0?'A1 hâlâ 583’ün üstünde → mıknatıs var sayılıyor.':'A1 583’ün altına indi → mıknatıs gitti.'}`)
+    +R('Devrede',`OUT ≈ <b>${VOUT(B).toFixed(2)} V</b>; S kutbu uzaklaştıkça gerilim 2,5 V’a doğru iner.`)
+    +R('Kodda','<code>else if (miknatisVar &amp;&amp; v &lt;= ESIK_ALT) miknatisVar = false;</code> → bu geçiş <b>sayılmaz</b>.')
+    +R('Neden iki eşik?','612 ile 583 arasındaki fark (histerezis), gerilim eşik çevresinde gürültüyle titrese de tek tur için birden fazla geçiş sayılmasını önler.');
   return '—';
 }
 
@@ -1776,8 +1838,8 @@ function frame(now){
   const none={power:0,free:0,gate:0,logic:0,pull:0,pot:0};
   let act;
   if(M.explain&&!M.explain.brief){
-    act=Object.assign({},none,({1:{power:1,gate:1},2:{free:1},3:{logic:1},4:{pull:1},5:{},6:{},7:{pot:1},8:M.out===0?{pull:1}:{logic:1}})[st]);
-  } else act={power:pwmOn?1:0,free:!pwmOn&&M.rpm>5?0.9:0,gate:pwmOn?0.85:0,logic:0.5,pull:M.out===0?1:0,pot:0.4};
+    act=Object.assign({},none,({1:{power:1,gate:1},2:{free:1},3:{logic:1,pull:1},4:{pull:1},5:{},6:{},7:{pot:1},8:{pull:1}})[st]);
+  } else act={power:pwmOn?1:0,free:!pwmOn&&M.rpm>5?0.9:0,gate:pwmOn?0.85:0,logic:0.5,pull:0.6,pot:0.4};
   for(const k in flowEls){const fe=flowEls[k];fe.g.setAttribute('opacity',act[k]);fe.fo.setAttribute('stroke-dashoffset',f1(dashOff));fe.fi.setAttribute('stroke-dashoffset',f1(dashOff));}
   const ex=M.explain&&!M.explain.brief;
   g('qGlow').setAttribute('opacity',pwmOn&&(!ex||st===1)?0.9:0);
@@ -1785,18 +1847,18 @@ function frame(now){
   g('motGlow').setAttribute('stroke',ex&&st===2?'#a05cf0':'#14b8e6');
   g('sensGlow').setAttribute('opacity',M.out===0?0.85:0);
   g('mcuHi').setAttribute('opacity',M.explain&&st>=4&&st<=7?1:0);
-  d2Path.setAttribute('stroke',M.out?'#ffd000':'#7d6a12');
+  d2Path.setAttribute('stroke',M.out?'#c9a400':'#ffd000');
   d9Path.setAttribute('stroke',pwmOn?'#ff8a1f':'#8a4a10');
   const pulse=g('pulse');
   if(M.explain&&(st===4||M.explain.brief)){const u=clamp(M.explain.t/(M.explain.brief?0.9:2.2),0,1),pt=d2Path.getPointAtLength(d2Len*(1-u));pulse.setAttribute('cx',f1(pt.x));pulse.setAttribute('cy',f1(pt.y));pulse.setAttribute('opacity',1);}
   else pulse.setAttribute('opacity',0);
   uiAcc+=dt; if(uiAcc>0.07){uiAcc=0;
-    setTag('chD2',M.out?'D2 = HIGH':'D2 = LOW',M.out?'#14223b':'#b42318');
+    setTag('chD2',`A1 = ${VOUT(M.B).toFixed(2)} V · ${ADC(M.B)}`,M.out?'#14223b':'#12994a');
     setTag('chD9',`D9 = PWM ${M.pwm} (${pwmOn?'HIGH':'LOW'})`);
     setTag('chA0',`A0 = ${M.a0v} → hedef ${M.a0v+200}`);
-    setTag('chS',M.out?'OUT = HIGH (serbest)':'OUT = LOW (S kutbu)',M.out?'#14223b':'#12994a');
+    setTag('chS',`OUT = ${VOUT(M.B).toFixed(2)} V`,M.out?'#14223b':'#12994a');
     setTag('chM',`${Math.round(M.rpm)} RPM`);
-    const mcuTxt=M.explain&&M.edge&&st>=4&&st<=7?({4:'kesme!',5:'T = '+(M.edge.T*1000).toFixed(1)+' ms',6:'RPM = '+M.edge.meas.toFixed(0),7:'PWM → '+M.edge.pwm})[st]:'loop() bekliyor';
+    const mcuTxt=M.explain&&M.edge&&st>=4&&st<=7?({4:'A1 ≥ 612!',5:'T = '+(M.edge.T*1000).toFixed(1)+' ms',6:'RPM = '+M.edge.meas.toFixed(0),7:'PWM → '+M.edge.pwm})[st]:'loop(): A1 okunuyor';
     setTag('chMCU',mcuTxt);
     steps.forEach((li,i)=>li.classList.toggle('on',i===st-1));
     const dt2=detailText(st); const de=$('#sDetail'); if(de.dataset.k!==dt2){de.innerHTML=dt2;de.dataset.k=dt2;}
@@ -1809,7 +1871,7 @@ function frame(now){
     $('#sTurn').textContent='Tur '+M.turn;
     $('#sTgtTxt').textContent=`A0 = ${M.a0v} → ${M.a0v+200} RPM`;
     $('#vReal').textContent=Math.round(M.rpm); $('#vMeas').textContent=M.meas?M.meas.toFixed(0):'—'; $('#vTgt').textContent=M.a0v+200;
-    $('#vPwm').textContent=`${M.pwm} / 255`; $('#vDuty').textContent=`%${(duty*100).toFixed(1)}`; $('#vVolt').textContent=`≈ ${(duty*12).toFixed(2)} V`; $('#vErr').textContent=M.meas?`${M.a0v+200-M.meas>=0?'+':''}${(M.a0v+200-M.meas).toFixed(0)} RPM`:'—'; $('#vD2').textContent=M.out?'HIGH':'LOW'; $('#vD2').style.color=M.out?'':'#b42318';
+    $('#vPwm').textContent=`${M.pwm} / 255`; $('#vDuty').textContent=`%${(duty*100).toFixed(1)}`; $('#vVolt').textContent=`≈ ${(duty*12).toFixed(2)} V`; $('#vErr').textContent=M.meas?`${M.a0v+200-M.meas>=0?'+':''}${(M.a0v+200-M.meas).toFixed(0)} RPM`:'—'; $('#vD2').textContent=`${VOUT(M.B).toFixed(2)} V · ${ADC(M.B)}`; $('#vD2').style.color=M.out?'':'#12994a';
     $('#vT').textContent=M.edge?(M.edge.T*1000).toFixed(1)+' ms':'—';
     drawTurns();
   }
