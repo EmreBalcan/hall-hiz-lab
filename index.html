@@ -1612,7 +1612,7 @@ build(svgS,'st_',false);
 build(svgM,'sm_',true);
 const g=id=>document.getElementById('sm_'+id);
 
-const MO={RPMMAX:2000,D0:0.12,EXP:0.9,TAU:0.15};
+const MO={RPMMAX:1223,D0:0.12,EXP:0.9,TAU:0.15};            // 12 V (PWM 255) ≈ 1223 RPM = potun üst sınırı
 const rpmSS=D=>D<=MO.D0?0:MO.RPMMAX*Math.pow((D-MO.D0)/(1-MO.D0),MO.EXP);
 const dutyFor=r=>r<=0?0:MO.D0+(1-MO.D0)*Math.pow(Math.min(1,r/MO.RPMMAX),1/MO.EXP);
 const HL={B0:60,BOP:35,BRP:25}, KP=0.0003, KI=0.0025;
