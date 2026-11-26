@@ -1833,7 +1833,9 @@ function frame(now){
     dashOff-=dt*30;
   }
   const duty=M.pwm/255;
-  const st=M.explain?M.explain.q[M.explain.i]:(M.out===0?8:3);
+  // adımlar arasındaki kısa dönüşte vurgu geri sıçramasın: 1→2 ve 8→1 arasında önceki adım ekranda kalır
+  const st=M.explain?M.explain.q[M.explain.i]:(M.tour[0]===2?1:(M.tour[0]===1&&M.lastEx===8)?8:(M.out===0?8:3));
+  if(M.explain) M.lastEx=st;
   const pwmOn=M.explain?(st===1?true:st===2?false:M.explain.pwm):(M.pwmPh<duty);
   // görseller
   discEl.setAttribute('transform',`rotate(${f1((M.a*180/Math.PI)%360)} ${MOT.x} ${MOT.y})`);
