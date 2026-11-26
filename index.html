@@ -1759,9 +1759,9 @@ function drawScope(){
 }
 function drawTurns(){
   const {c,w,h}=prep($('#cTurns')),L=40,R=6,T=8,B=18,pw=w-L-R,ph=h-T-B,N=16,arr=M.hist.slice(-N);
-  const ymax=1600,Y=v=>T+ph-clamp(v,0,ymax)/ymax*ph;
+  const ymax=2400,Y=v=>T+ph-clamp(v,0,ymax)/ymax*ph;
   c.font='10px "JetBrains Mono",monospace';c.textAlign='right';c.fillStyle='#52617b';
-  for(const v of [0,400,800,1200,1600]){c.strokeStyle='#e7edf4';c.beginPath();c.moveTo(L,Y(v));c.lineTo(w-R,Y(v));c.stroke();c.fillText(v,L-4,Y(v)+3);}
+  for(const v of [0,600,1200,1800,2400]){c.strokeStyle='#e7edf4';c.beginPath();c.moveTo(L,Y(v));c.lineTo(w-R,Y(v));c.stroke();c.fillText(v,L-4,Y(v)+3);}
   const bw=pw/N;
   arr.forEach((s,i)=>{const x=L+i*bw;c.fillStyle='#2563eb';c.fillRect(x+bw*0.18,Y(s.meas),bw*0.64,Y(0)-Y(s.meas));
     c.strokeStyle='#0b7fc0';c.lineWidth=2;c.setLineDash([4,3]);c.beginPath();c.moveTo(x+1,Y(s.target));c.lineTo(x+bw-1,Y(s.target));c.stroke();c.setLineDash([]);c.lineWidth=1;});
