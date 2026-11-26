@@ -479,7 +479,7 @@ void kontrol(unsigned long T, unsigned long simdi) {
             <label><input type="checkbox" id="sExplain"> Her turu ayrıntılı açıkla</label>
           </div>
           <div class="btnrow" style="margin-top:10px">
-            <label for="sSlow">Yavaş çekim</label><input type="range" id="sSlow" min="3" max="16" step="1" value="6"><output id="oSlow">1 tur ≈ 6 s</output>
+            <label for="sSlow">Tur süresi</label><input type="range" id="sSlow" min="8" max="96" step="4" value="48"><output id="oSlow">1 tur ≈ 48 s · adım 6 s</output>
           </div>
         </div>
         <div class="card">
@@ -1620,10 +1620,12 @@ const VOUT=b=>clamp(2.5+0.014*b,0.86,4.21), ADC=b=>Math.min(1023,Math.floor(VOUT
 const thEdge=Math.PI-Math.acos(HL.BOP/HL.B0);
 const Bat=a=>HL.B0*Math.cos(a-Math.PI);           // sensör 180° konumunda (solda)
 const PWMVIS=1.4;                                   // gösterimdeki PWM frekansı (Hz)
-const EXDUR={1:13,2:16,3:10,4:11,5:10,6:10,7:13,8:11}; // ayrıntılı turda her adımın okuma süresi (s)
+let turSec=48;                                      // ayrıntılı turun süresi (s): 8 adım × turSec/8
+const adimSec=()=>turSec/8;
 
-let M, playing=false, started=false, explainOn=false, revSec=6;
-const ts=()=>0.1/revSec;                            // 600 RPM'de 1 tur = revSec saniye
+let M, playing=false, started=false, explainOn=false;
+const revSec=()=>clamp(adimSec(),1.5,6);             // adımlar arası dönüş hızı: 600 RPM'de 1 tur = revSec saniye
+const ts=()=>0.1/revSec();
 const snaps=[]; let lastLogTe=-1;
 function reset(){
   const pot=+$('#sPot').value, r=600, w=r/60*TAU, a0=Math.PI+Math.acos(HL.BRP/HL.B0)+0.3;
@@ -1659,7 +1661,7 @@ function onEdge(te){
   if(explainOn||M.detail>0){startEx([4,5,6,7]);M.relDetail=true;if(M.detail>0)M.detail--;} else startEx([7],{brief:true});
 }
 
-function exDur(){return M.explain.brief?2.2:EXDUR[M.explain.q[M.explain.i]];}
+function exDur(){return M.explain.brief?Math.min(2.2,adimSec()):adimSec();}
 const detailed=()=>explainOn||M.detail>0;
 function snapPush(){snaps.push(JSON.parse(JSON.stringify(M)));if(snaps.length>40)snaps.shift();}
 function startEx(q,extra){M.explain=Object.assign({q,i:0,t:0,pwm:M.lastOn},extra||{});if(!M.explain.brief)snapPush();}
@@ -1693,7 +1695,7 @@ $('#sNext').addEventListener('click',()=>{if(M.explain&&!M.explain.brief){nextEx
 $('#sPrev').addEventListener('click',()=>{if(!snaps.length)return;
   if(M.explain&&!M.explain.brief&&snaps.length>1)snaps.pop();
   M=JSON.parse(JSON.stringify(snaps[snaps.length-1]));M.explain.t=0;setPlay(true);});
-$('#sSlow').addEventListener('input',e=>{revSec=+e.target.value;$('#oSlow').textContent=`1 tur ≈ ${revSec} s`;});
+$('#sSlow').addEventListener('input',e=>{turSec=+e.target.value;$('#oSlow').textContent=`1 tur ≈ ${turSec} s · adım ${String(+adimSec().toFixed(1)).replace('.',',')} s`;});
 $('#sPot').addEventListener('input',e=>{M.a0v=+e.target.value;M.detail=2;if(!M.tour.length)M.tour=[1,2,3];});
 document.querySelectorAll('.potrow [data-t]').forEach(b=>b.addEventListener('click',()=>{const v=+b.dataset.t-200;$('#sPot').value=v;M.a0v=v;M.detail=2;if(!M.tour.length)M.tour=[1,2,3];}));
 reset();
