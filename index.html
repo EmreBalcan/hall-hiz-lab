@@ -174,6 +174,14 @@ details.code pre{margin:0;padding:0 14px 14px;overflow-x:auto;font:12.5px/1.55 v
 .steps-l li.on{border-color:var(--accent);background:#e3f1fb;color:var(--fg);}
 .steps-l li.on b{color:var(--accent);}
 .steps-l li>div{min-width:0;}
+.steps-l li{position:relative;}
+.stepctl{display:none;position:absolute;top:5px;right:6px;gap:4px;}
+.steps-l li.on .stepctl{display:flex;}
+.steps-l li.on strong{padding-right:92px;}
+.stepctl button{width:26px;height:24px;padding:0;border:1px solid var(--accent);border-radius:5px;background:#fff;color:var(--accent);font-size:11px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.stepctl button.ch{font-size:19px;font-weight:700;padding-bottom:2px;}
+.stepctl button:hover{background:var(--accent);color:#fff;}
+.stepctl button:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
 .steps-l strong{display:block;font-weight:600;color:inherit;}
 .steps-l .sum{display:block;font:500 11.5px var(--f-mono);color:var(--dim);margin-top:1px;}
 .steps-l li.on .sum{color:var(--accent);}
@@ -1689,7 +1697,12 @@ function advance(dt,rec){
 function fastForward(){for(let k=0;k<6000;k++){if(advance(1/60,true))return;}}
 /* ---------- arayüz ---------- */
 const steps=[...document.querySelectorAll('#sSteps li')];
-function setPlay(v){playing=v;$('#sPlay').textContent=v?'❚❚ Duraklat':'▶ Başlat';}
+steps.forEach(li=>{const d=document.createElement('div');d.className='stepctl';
+  d.innerHTML='<button type="button" data-a="prev" title="Önceki adım" aria-label="Önceki adım" class="ch">‹</button><button type="button" data-a="play" class="sp" title="Duraklat" aria-label="Duraklat">❚❚</button><button type="button" data-a="next" title="Sonraki adım" aria-label="Sonraki adım" class="ch">›</button>';
+  d.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;e.stopPropagation();$({prev:'#sPrev',play:'#sPlay',next:'#sNext'}[b.dataset.a]).click();});
+  li.appendChild(d);});
+function setPlay(v){playing=v;$('#sPlay').textContent=v?'❚❚ Duraklat':'▶ Başlat';
+  document.querySelectorAll('.stepctl .sp').forEach(b=>{b.textContent=v?'❚❚':'▶';b.title=b.ariaLabel=v?'Duraklat':'Devam et';});}
 $('#sPlay').addEventListener('click',()=>setPlay(!playing));
 $('#sReset').addEventListener('click',()=>{$('#sPot').value=200;reset();setPlay(true);});
 $('#sExplain').addEventListener('change',e=>{explainOn=e.target.checked;if(explainOn&&!M.tour.length&&!M.explain)M.tour=[1,2,3];});
